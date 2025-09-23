@@ -8,9 +8,10 @@ shell = "*"
 flask = "*"
 python-dotenv = "*"
 flask-bcrypt = "*"
-flask-mysqldb = "*"
 flask-jwt-extended = "*"
 psycopg2 = "*"
+flask-mysqldb = "*"
+dotenv = "*"
 
 [dev-packages]
 
