@@ -13,7 +13,7 @@ def init_db(app):
     #Configurar la BD con la instancia de flask
     app.config['MYSQL_HOST'] = os.getenv('DB_HOST')
     app.config['MYSQL_USER'] = os.getenv('DB_USER')
-    app.config['MYSQL_PASSWORD'] = os.getenv('DB_PASSWD')
+    app.config['MYSQL_PASSWORD'] = os.getenv('DB_PASSWORD')
     app.config['MYSQL_DB'] = os.getenv('DB_NAME')
     app.config['MYSQL_PORT'] = int (os.getenv('DB_PORT'))
 

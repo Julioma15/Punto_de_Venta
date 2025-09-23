@@ -10,6 +10,7 @@ python-dotenv = "*"
 flask-bcrypt = "*"
 flask-mysqldb = "*"
 flask-jwt-extended = "*"
+psycopg2 = "*"
 
 [dev-packages]
 
