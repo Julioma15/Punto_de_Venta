@@ -2,6 +2,7 @@ from flask import Flask
 from flask_jwt_extended import JWTManager
 import os
 from dotenv import load_dotenv
+from routes.prueba import productos_bp
 
 #Cargar las Variables de entorno
 load_dotenv()
@@ -14,6 +15,9 @@ def create_app():
     #configuracion del JWT secreto de .env
     app.config['JWT_SECRET_KEY']= os.getenv('JWT_SECRET_KEY')
     jwt=JWTManager(app)
+
+    #registramos el blueprint
+    app.register_blueprint(productos_bp, url_prefix='/api') 
 
     return app
 

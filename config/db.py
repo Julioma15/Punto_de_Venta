@@ -1,5 +1,5 @@
 import os
-from psycopg2 import psycopg2
+import psycopg2
 from dotenv import load_dotenv #Sirve patra extraer las vasriables del .env al sistema operativo
 
 #Cargar de .env las variables de entorno
@@ -9,11 +9,11 @@ load_dotenv()
 try:
     # Conexión a la base de datos
     connection = psycopg2.connect(
-        DB_NAME= os.getenv('DB_NAME'),
-        DB_USER= os.getenv('DB_USER'),
-        DB_PASSWORD= os.getenv('DB_PASSWORD'),
-        BD_HOST= os.getenv('DB_HOST'),
-        dB_PORT= os.getenv('DB_PORT')
+        dbname=os.getenv('DB_NAME'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASSWORD'),
+        host=os.getenv('DB_HOST'),
+        port=os.getenv('DB_PORT')
     )
     print("Conexión exitosa a la base de datos")
 
@@ -25,6 +25,7 @@ try:
 
 except Exception as e:
     print(f"Error al conectar: {e}")
+    connection = None  # Para evitar el NameError
 
 finally:
     # Cerrar la conexión
