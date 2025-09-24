@@ -9,9 +9,9 @@ flask = "*"
 python-dotenv = "*"
 flask-bcrypt = "*"
 flask-jwt-extended = "*"
-psycopg2 = "*"
 flask-mysqldb = "*"
 dotenv = "*"
+psycopg2 = "*"
 
 [dev-packages]
 

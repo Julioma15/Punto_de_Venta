@@ -1,30 +1,34 @@
-from flask_mysqldb import MySQL
 import os
+from psycopg2 import psycopg2
 from dotenv import load_dotenv #Sirve patra extraer las vasriables del .env al sistema operativo
 
 #Cargar de .env las variables de entorno
 load_dotenv()
 
-#Creando una instancia de MySQL
-mysql = MySQL()
-
 #Funcion para conectarse a la base de datos. Se le pasa la app, porque es la variable que inicializa los procesos 
-def init_db(app): 
-    #Configurar la BD con la instancia de flask
-    app.config['MYSQL_HOST'] = os.getenv('DB_HOST')
-    app.config['MYSQL_USER'] = os.getenv('DB_USER')
-    app.config['MYSQL_PASSWORD'] = os.getenv('DB_PASSWORD')
-    app.config['MYSQL_DB'] = os.getenv('DB_NAME')
-    app.config['MYSQL_PORT'] = int (os.getenv('DB_PORT'))
+try:
+    # Conexión a la base de datos
+    connection = psycopg2.connect(
+        DB_NAME= os.getenv('DB_NAME'),
+        DB_USER= os.getenv('DB_USER'),
+        DB_PASSWORD= os.getenv('DB_PASSWORD'),
+        BD_HOST= os.getenv('DB_HOST'),
+        dB_PORT= os.getenv('DB_PORT')
+    )
+    print("Conexión exitosa a la base de datos")
 
-    #Inicializar la conexion 
-    mysql.init_app(app)
+    # Crear un cursor para ejecutar consultas
+    cursor = connection.cursor()
+    cursor.execute("SELECT version();")
+    db_version = cursor.fetchone()
+    print(f"Versión de PostgreSQL: {db_version}")
 
-#Definimos el cursor. Esto permitira la conexion
-def get_db_connection ():
-    #Devuelve un cursor para interactuar con la DB
-    try: 
-        connection = mysql.connection
-        return connection.cursor()
-    except Exception as e: 
-        raise RuntimeError(f"Error al conectarse a la base de datos: {e}")
+except Exception as e:
+    print(f"Error al conectar: {e}")
+
+finally:
+    # Cerrar la conexión
+    if connection:
+        cursor.close()
+        connection.close()
+        print("Conexión cerrada")
