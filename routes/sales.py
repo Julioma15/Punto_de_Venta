@@ -35,7 +35,7 @@ def create_sale():
     unit_price = cursor.fetchone()
     total = unit_price[0]*quantity
     
-    #user_confirmation = 'select id_employee from employees where id_employee = %s'
+    #user_confirmation = 'select id_user from employees where id_user = %s'
     #cursor.execute(user_confirmation, (current_user, ))
     #employee = cursor.fetchone()
     '''
@@ -62,28 +62,28 @@ def get_all_sales():
     #current_user = get_jwt_identity()
     
     data = request.get_json()
-    id_employee = data.get('id_employee')
+    id_user = data.get('id_user')
 
     connection = db_connection()
     cursor = connection.cursor()
 
     '''
-    user_confirmation = 'select*from employees where id_employee = %s;'
-    employee = cursor.execute(user_confirmation, (id_employee, ))
-    if not employee == int(id_employee): 
+    user_confirmation = 'select*from employees where id_user = %s;'
+    employee = cursor.execute(user_confirmation, (id_user, ))
+    if not employee == int(id_user): 
         cursor.close()
         return jsonify({"Error":"Invalid credentials"})
     '''
     
-    query_2 = 'select *from ventas where id_ticket IN (select id_ticket from tickets where id_employee = %s);'
-    cursor.execute(query_2, (id_employee, )) 
-    employee_sales = cursor.fetchall()
+    query_2 = 'select *from ventas where ticket_id IN (select id_ticket from tickets where id_user = %s);'
+    cursor.execute(query_2, (id_user, )) 
+    user_sales = cursor.fetchall()
 
     cursor.close()
 
-    if not employee_sales: 
+    if not user_sales: 
         return jsonify ({"Error":"The employee does not have sales yet"})
     else: 
-        return jsonify ({"Employee's sales":employee_sales}), 200
+        return jsonify ({"User's sales":user_sales}), 200
     
 
