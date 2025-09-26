@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from config.db import db_connection
-from flask_jwt_extended import create_access_token, jwt_required
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from flask_bcrypt import Bcrypt
 import datetime
 
@@ -10,26 +10,27 @@ bcrypt = Bcrypt()
 ROLES_PERMITIDOS = {'admin', 'cashier', 'manager'}
 
 def validar_campos_requeridos(data, campos):
-    faltantes = [c for c in campos if not data.get(c)]
+    faltantes = [campo for campo in campos if not data.get(campo)]
     if faltantes:
         return False, f"Por favor rellena los siguientes campos: {', '.join(faltantes)}"
     return True, None
 
 # Registro de usuarios
-@users_bp.route('/signIn', methods=['POST'])  # <-- corregido el nombre de ruta
-#@jwt_required
-def registrar_usuario():                      # <-- nombre de función acorde
+@users_bp.route('/signIn', methods=['POST'])
+@jwt_required()  # paréntesis por consistencia con flask-jwt-extended v4+
+def registrar_usuario():
+    # identidad del JWT (id del usuario autenticado)
+    current_user_id = get_jwt_identity()
 
-    data = request.get_json()
-
-    # Validaciones
+    data = request.get_json() or {}
+    # Validaciones de payload
     valido, mensaje = validar_campos_requeridos(data, ["username", "password", "role"])
     if not valido:
         return jsonify({"error": mensaje}), 400
 
-    username = data.get("username").strip()
+    username = data.get("username", "").strip()
     password = data.get("password")
-    role = data.get("role").strip().lower()
+    role = (data.get("role") or "").strip().lower()
 
     if role not in ROLES_PERMITIDOS:
         return jsonify({"error": f"Role inválido. Usa: {', '.join(sorted(ROLES_PERMITIDOS))}"}), 400
@@ -41,11 +42,28 @@ def registrar_usuario():                      # <-- nombre de función acorde
     cursor = None
     try:
         cursor = connection.cursor()
-        # ¿existe ya?
+
+        # 1) Verificar que el usuario del token exista y sea ADMIN
+        #    (similar a “la tarea existe y el usuario logueado es el dueño”,
+        #     aquí la “condición” es ser admin).
+        cursor.execute(
+            "SELECT role FROM usuarios WHERE id_user = %s AND active = TRUE",
+            (current_user_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Token inválido o usuario no encontrado"}), 401
+
+        role_actual = (row[0] or "").lower()
+        if role_actual != "admin":
+            return jsonify({"error": "Usuario no autorizado (solo admin puede crear usuarios)"}), 403
+
+        # 2) Verificar que no exista ya ese username
         cursor.execute("SELECT 1 FROM usuarios WHERE username = %s", (username,))
         if cursor.fetchone():
             return jsonify({"error": "Ya existe un usuario con ese username"}), 400
 
+        # 3) Insertar usuario nuevo
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
         cursor.execute(
             "INSERT INTO usuarios (username, password, role) VALUES (%s, %s, %s)",
@@ -62,6 +80,7 @@ def registrar_usuario():                      # <-- nombre de función acorde
         if cursor:
             cursor.close()
         connection.close()
+
 
 # Login
 @users_bp.route('/logIn', methods=['POST'])
