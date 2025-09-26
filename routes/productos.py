@@ -26,6 +26,26 @@ def obtener_productos():
     else:
         return jsonify({"Productos": productos})
     
+
+@productos_bp.route('/<int:id_product>', methods=['GET'])
+def mostrar_un_producto(id_product):
+    connection = db_connection()
+    cursor = connection.cursor()
+    try:
+        query = "SELECT * FROM productos WHERE id_product = %s"
+        cursor.execute(query, (id_product,))
+        producto = cursor.fetchone()
+        if not producto:
+            return jsonify({"error":"no existe producto con ese id"}), 404
+        return jsonify({"Producto ": producto}), 200
+    except Exception as error:
+        return jsonify({"error":f"El error registrado es: {str(error)}"}), 500
+    
+    finally:
+        cursor.close()
+        connection.close()
+
+    
 @productos_bp.route ('/agregar', methods=['POST'])
 def Agregar_Productos():
     data = request.get_json()
