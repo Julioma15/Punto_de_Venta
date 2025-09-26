@@ -2,7 +2,7 @@ from flask import Flask
 from flask_jwt_extended import JWTManager
 import os
 from dotenv import load_dotenv
-from routes.prueba import productos_bp
+from routes.productos import productos_bp
 from routes.users import users_bp
 from routes.sales import sales_bp
 #Cargar las Variables de entorno
@@ -18,9 +18,13 @@ def create_app():
     jwt=JWTManager(app)
 
     #registramos el blueprint
-    app.register_blueprint(productos_bp, url_prefix='/api') 
+
     app.register_blueprint(users_bp, url_prefix='/users')
     app.register_blueprint(sales_bp, url_prefix='/api')
+    app.register_blueprint(productos_bp, url_prefix='/productos')
+
+    print(app.url_map)
+
     return app
 
 app = create_app()
