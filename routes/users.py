@@ -1,70 +1,103 @@
-#PAME
-
-# POST /auth/login
-# Inicia sesión y devuelve token.
-# GET /me
-# Devuelve perfil del usuario autenticado.
-
 from flask import Blueprint, jsonify, request
 from config.db import db_connection
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
+from flask_jwt_extended import create_access_token, jwt_required
 from flask_bcrypt import Bcrypt
+import datetime
 
 users_bp = Blueprint('users', __name__)
-
-#inicializamos el Bycript para hashear las contraseñas
 bcrypt = Bcrypt()
 
-#-------------- ENDPOINTS USUARIOS -----------------#
-#VALIDAMOS QUE SE PONGAN TODOS LOS CAMPOS REQUERIDOS
+ROLES_PERMITIDOS = {'admin', 'cashier', 'manager'}
+
 def validar_campos_requeridos(data, campos):
-    faltantes = [campo for campo in campos if not data.get(campo)]
+    faltantes = [c for c in campos if not data.get(c)]
     if faltantes:
-        return False, f"Porfavor rellena los siguientes campos: {', '.join(faltantes)}"
+        return False, f"Por favor rellena los siguientes campos: {', '.join(faltantes)}"
     return True, None
 
-#Lo volvemos para que solo el administrador pueda agregar usuarios?
+# Registro de usuarios
+@users_bp.route('/signIn', methods=['POST'])  # <-- corregido el nombre de ruta
+#@jwt_required
+def registrar_usuario():                      # <-- nombre de función acorde
 
-#ENDPOINT REGRISTRAR USUARIOS
-@users_bp.route('/singIn', methods=['POST'])
-def obtener_productos():
     data = request.get_json()
-    #validamos que esten todos los campos
-    campos_requeridos = ["username", "password", "role"]
-    valido, mensaje = validar_campos_requeridos(data, campos_requeridos)
+
+    # Validaciones
+    valido, mensaje = validar_campos_requeridos(data, ["username", "password", "role"])
     if not valido:
         return jsonify({"error": mensaje}), 400
-    
-    username = data.get("username")
+
+    username = data.get("username").strip()
     password = data.get("password")
-    #Los roles admitidos son admin, cashier, manager 
-    role = data.get("role")
+    role = data.get("role").strip().lower()
 
-    #obtenemos la conexion a la base de datos
+    if role not in ROLES_PERMITIDOS:
+        return jsonify({"error": f"Role inválido. Usa: {', '.join(sorted(ROLES_PERMITIDOS))}"}), 400
+
     connection = db_connection()
-    cursor = connection.cursor()
+    if not connection:
+        return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
 
-    try: 
-        # verificar si el usuario ya existe
-        cursor.execute("SELECT * FROM usuarios WHERE username = %s", (username,))
-        existing_user = cursor.fetchone()
+    cursor = None
+    try:
+        cursor = connection.cursor()
+        # ¿existe ya?
+        cursor.execute("SELECT 1 FROM usuarios WHERE username = %s", (username,))
+        if cursor.fetchone():
+            return jsonify({"error": "Ya existe un usuario con ese username"}), 400
 
-        if existing_user:
-            return jsonify({"error" : "Ya hay un usuario registrado con ese nombre de usuario"}), 400
-        # Hash a la contraseña con Flask-Bcrypt
-        # .decode('utf-8') se utiliza para convertir el hash de bytes a cadena antes de almacenarlo en la base de datos
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        #insertar el nuevo usuario
-        cursor.execute('''INSERT INTO usuarios (username, password, role)
-                       VALUES (%s, %s, %s)''', 
-                       (username, hashed_password, role))
-        cursor.connection.commit()
-        return jsonify({"mensaje" : f"El usuario {username}, [{role}] ha sido creado"})
-    
-    except Exception as error:
-        return jsonify({"error" : f"Error el registrar el usuario: {str(error)}"}), 500
-    
+        cursor.execute(
+            "INSERT INTO usuarios (username, password, role) VALUES (%s, %s, %s)",
+            (username, hashed_password, role)
+        )
+        connection.commit()
+        return jsonify({"mensaje": f"Usuario {username} [{role}] creado"}), 201
+
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        return jsonify({"error": f"Error al registrar el usuario: {str(e)}"}), 500
     finally:
-        # asegurarse de cerrar la conexion y el cursor a la base de datos despues de la operacion
-        cursor.close()
+        if cursor:
+            cursor.close()
+        connection.close()
+
+# Login
+@users_bp.route('/logIn', methods=['POST'])
+def login():
+    data = request.get_json() or {}
+
+    valido, mensaje = validar_campos_requeridos(data, ["username", "password"])
+    if not valido:
+        return jsonify({"error": mensaje}), 400
+
+    username = data.get("username").strip()
+    password = data.get("password")
+
+    connection = db_connection()
+    if not connection:
+        return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
+
+    cursor = None
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            "SELECT password, id_user FROM usuarios WHERE username = %s",
+            (username,)
+        )
+        row = cursor.fetchone()  # row = (hashed_pwd, id_user) o None
+
+        if row and bcrypt.check_password_hash(row[0], password):
+            expires = datetime.timedelta(minutes=60)
+            access_token = create_access_token(identity=str(row[1]), expires_delta=expires)
+            return jsonify({"accessToken": access_token}), 200
+
+        return jsonify({"error": "Credenciales incorrectas"}), 401
+
+    except Exception as e:
+        return jsonify({"error": f"Error en login: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
         connection.close()
