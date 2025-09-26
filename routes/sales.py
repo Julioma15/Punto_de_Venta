@@ -14,24 +14,24 @@ def create_sale():
 
     data = request.get_json()
 
-    id_ticket = data.get('id_ticket')
-    id_product = data.get('id_product')
+    ticket_id = data.get('ticket_id')
+    product_id = data.get('product_id')
     quantity = data.get('quantity')
     
     connection = db_connection()
     cursor = connection.cursor()
     
     query = 'select*from tickets where id_ticket = %s'
-    cursor.execute(query, (id_ticket, ))
+    cursor.execute(query, (ticket_id, ))
     ticket_product_conformation = cursor.fetchone()
     query_2 = 'select*from productos where id_product = %s'
-    cursor.execute(query_2, (id_product, ))
+    cursor.execute(query_2, (product_id, ))
     product_confirmation = cursor.fetchone()
     if not ticket_product_conformation or not product_confirmation: 
         cursor.close()
-        return jsonify({"Error":"That id_ticket or id_product not exist"})
+        return jsonify({"Error":"That ticket_id or product_id not exist"})
 
-    cursor.execute('select price from productos where id_product = %s;', (id_product, ))
+    cursor.execute('select price from productos where id_product = %s;', (product_id, ))
     unit_price = cursor.fetchone()
     total = unit_price[0]*quantity
     
@@ -45,8 +45,8 @@ def create_sale():
     '''
     
     try: 
-        query_3 = 'INSERT INTO ventas (id_ticket, id_product, unit_price, quantity, total) values (%s, %s, %s, %s, %s)'
-        cursor.execute(query_3, (id_ticket, id_product, unit_price, quantity, total))
+        query_3 = 'INSERT INTO ventas (ticket_id, product_id, unit_price, quantity, total) values (%s, %s, %s, %s, %s)'
+        cursor.execute(query_3, (ticket_id, product_id, unit_price, quantity, total))
         cursor.connection.commit()
         return jsonify({"Message":"sale completed"})
     except Exception as error: 
@@ -75,7 +75,7 @@ def get_all_sales():
         return jsonify({"Error":"Invalid credentials"})
     '''
     
-    query_2 = 'select *from ventas where ticket_id IN (select id_ticket from tickets where id_user = %s);'
+    query_2 = 'select *from ventas where ticket_id IN (select ticket_id from tickets where id_user = %s);'
     cursor.execute(query_2, (id_user, )) 
     user_sales = cursor.fetchall()
 
