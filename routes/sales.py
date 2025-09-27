@@ -88,17 +88,46 @@ def get_all_sales():
     
 
 # GET /sales/<ticket_id>/receipt
+from flask_jwt_extended import jwt_required, get_jwt_identity
+
 @sales_bp.route('/sales/<int:ticket_id>/receipt', methods=['GET'])
+@jwt_required()
 def get_receipt(ticket_id):
     """
     Devuelve la info del ticket usando SOLO ventas + nombre de producto.
     Calcula line_total = unit_price * quantity (no hay columna total).
+    Acceso:
+      - admin/manager: cualquier ticket
+      - cashier: solo tickets creados por él/ella (tickets.created_by)
     """
-    conn = db_connection()
-    cur = conn.cursor()
+    current_user_id = get_jwt_identity()
+    connection = db_connection()
+    if not connection:
+        return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
+    cursor = connection.cursor()
     try:
-        # Traer líneas de venta para ese ticket_id
-        cur.execute("""
+        # 1) Validar rol del usuario actual
+        cursor.execute("SELECT role FROM usuarios WHERE id_user = %s AND active = TRUE", (current_user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Token inválido o usuario no encontrado"}), 401
+
+        role_actual = (row[0] or "").lower()
+        if role_actual not in ("admin", "manager", "cashier"):
+            return jsonify({"error": "Usuario no autorizado"}), 403
+
+        # 2) Si es cashier, verificar propiedad del ticket
+        if role_actual == "cashier":
+            cursor.execute("SELECT created_by FROM tickets WHERE id_ticket = %s", (ticket_id,))
+            trow = cur.fetchone()
+            if not trow:
+                return jsonify({"error": "Ticket no encontrado"}), 404
+            created_by = int(trow[0]) if trow[0] is not None else None
+            if created_by != int(current_user_id):
+                return jsonify({"error": "No tienes permiso para ver este recibo"}), 403
+
+        # 3) Traer líneas de venta del ticket
+        cursor.execute("""
             SELECT
                 v.product_id,
                 COALESCE(p.product_name, '') AS product_name,
@@ -109,19 +138,22 @@ def get_receipt(ticket_id):
             WHERE v.ticket_id = %s
             ORDER BY v.id_sale;
         """, (ticket_id,))
-        rows = cur.fetchall()
+        rows = cursor.fetchall()
 
         if not rows:
+            # Si no hay líneas, validamos que el ticket exista para diferenciar 404
+            cursor.execute("SELECT 1 FROM tickets WHERE id_ticket = %s", (ticket_id,))
+            exists = cursor.fetchone()
+            if not exists:
+                return jsonify({"error": "Ticket no encontrado"}), 404
             return jsonify({"error": "No hay ventas para ese ticket_id"}), 404
 
         items = []
         subtotal = 0.0
-
         for product_id, product_name, unit_price, quantity in rows:
             up = float(unit_price or 0)
             qty = int(quantity or 0)
             line_total = up * qty
-
             items.append({
                 "product_id": int(product_id),
                 "product_name": product_name,
@@ -148,8 +180,7 @@ def get_receipt(ticket_id):
         return jsonify({"error": f"Ocurrió un error al consultar el recibo: {str(e)}"}), 500
     finally:
         try:
-            cur.close()
-            conn.close()
+            cursor.close()
+            connection.close()
         except:
             pass
-
