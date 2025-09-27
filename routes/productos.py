@@ -45,6 +45,87 @@ def mostrar_un_producto(id_product):
         cursor.close()
         connection.close()
 
+
+@productos_bp.route('/<string:barcode>', methods=['GET'])
+def mostrar_con_barcode(barcode):
+    connection = db_connection()
+    cursor = connection.cursor()
+    try:
+        query = "SELECT * FROM productos WHERE barcode = %s"
+        cursor.execute(query, (barcode, ))
+        producto = cursor.fetchone()
+        if not producto:
+            return jsonify({"error":"no existe producto con ese codigo de barras"}),404
+        return jsonify({"Producto ": producto}),200
+    except Exception as error:
+        return jsonify({"error":f"El error registrado es: {str(error)}"}), 500
+    
+    finally:
+        cursor.close()
+        connection.close()
+    
+
+@productos_bp.route('/<int:id_product>', methods= ['PATCH'])
+def editar_producto(id_product):
+    data = request.get_json() or {}
+    product_name =data.get("product_name")
+    price = data.get("price")
+    barcode = data.get("barcode")
+    stock =data.get("stock")
+    connection = db_connection()
+    cursor = connection.cursor()
+
+    try:
+        query = "SELECT * FROM productos WHERE id_product = %s"
+        cursor.execute(query, (id_product ,))
+        producto =cursor.fetchone()
+        if not producto:
+            return jsonify({"error": "No existe producto con ese id"}),404
+        #Funcionamiento del patch
+        campos = []
+        valores = []
+
+        if product_name is not None:
+            campos.append("product_name = %s")
+            valores.append(product_name)
+
+        if price is not None:
+            campos.append("price = %s")
+            valores.append(price)
+
+        if barcode is not None:
+            campos.append("barcode = %s")
+            valores.append(barcode)
+
+        if stock is not None:
+            campos.append("stock = %s")
+            valores.append(stock)
+        
+        if not campos:
+            return jsonify({"error":"no hay datos para actualizar"}), 400
+        
+        valores.append(id_product)
+        query_update = f"UPDATE productos SET {', '.join(campos)} WHERE id_product = %s "
+        cursor.execute(query_update, tuple(valores))
+        connection.commit()
+
+        return jsonify({"mensaje":f"Producto {id_product} fue actualizado"}),200
+    
+    except Exception as error:
+        return jsonify({"error": f"El error registrado es: {str(error)}"}), 500
+
+    finally:
+        cursor.close()
+        connection.close()
+        
+        
+
+
+        
+
+
+          
+
     
 @productos_bp.route ('/agregar', methods=['POST'])
 def Agregar_Productos():
