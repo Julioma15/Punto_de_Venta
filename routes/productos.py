@@ -45,6 +45,26 @@ def mostrar_un_producto(id_product):
         cursor.close()
         connection.close()
 
+
+@productos_bp.route('/<string:barcode>', methods=['GET'])
+def mostrar_con_barcode(barcode):
+    connection = db_connection()
+    cursor = connection.cursor()
+    try:
+        query = "SELECT * FROM productos WHERE barcode = %s"
+        cursor.execute(query, (barcode, ))
+        producto = cursor.fetchone()
+        if not producto:
+            return jsonify({"error":"no existe producto con ese codigo de barras"}),404
+        return jsonify({"Producto ": producto}),200
+    except Exception as error:
+        return jsonify({"error":f"El error registrado es: {str(error)}"}), 500
+    
+    finally:
+        cursor.close()
+        connection.close()
+    
+
 @productos_bp.route('/<int:id_product>', methods= ['PATCH'])
 def editar_producto(id_product):
     data = request.get_json() or {}
