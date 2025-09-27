@@ -87,3 +87,69 @@ def get_all_sales():
         return jsonify ({"User's sales":user_sales}), 200
     
 
+# GET /sales/<ticket_id>/receipt
+@sales_bp.route('/sales/<int:ticket_id>/receipt', methods=['GET'])
+def get_receipt(ticket_id):
+    """
+    Devuelve la info del ticket usando SOLO ventas + nombre de producto.
+    Calcula line_total = unit_price * quantity (no hay columna total).
+    """
+    conn = db_connection()
+    cur = conn.cursor()
+    try:
+        # Traer líneas de venta para ese ticket_id
+        cur.execute("""
+            SELECT
+                v.product_id,
+                COALESCE(p.product_name, '') AS product_name,
+                v.unit_price,
+                v.quantity
+            FROM ventas v
+            LEFT JOIN productos p ON p.id_product = v.product_id
+            WHERE v.ticket_id = %s
+            ORDER BY v.id_sale;
+        """, (ticket_id,))
+        rows = cur.fetchall()
+
+        if not rows:
+            return jsonify({"error": "No hay ventas para ese ticket_id"}), 404
+
+        items = []
+        subtotal = 0.0
+
+        for product_id, product_name, unit_price, quantity in rows:
+            up = float(unit_price or 0)
+            qty = int(quantity or 0)
+            line_total = up * qty
+
+            items.append({
+                "product_id": int(product_id),
+                "product_name": product_name,
+                "unit_price": up,
+                "quantity": qty,
+                "line_total": round(line_total, 2)
+            })
+            subtotal += line_total
+
+        taxes = 0.0  # ajusta si manejas impuestos
+        total = subtotal + taxes
+
+        return jsonify({
+            "ticket_id": int(ticket_id),
+            "items": items,
+            "summary": {
+                "subtotal": round(subtotal, 2),
+                "taxes": round(taxes, 2),
+                "total": round(total, 2)
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Ocurrió un error al consultar el recibo: {str(e)}"}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except:
+            pass
+

@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from routes.productos import productos_bp
 from routes.users import users_bp
 from routes.sales import sales_bp
+from routes.reports import reports_bp
 #Cargar las Variables de entorno
 load_dotenv()
 
@@ -22,6 +23,7 @@ def create_app():
     app.register_blueprint(users_bp, url_prefix='/users')
     app.register_blueprint(sales_bp, url_prefix='/api')
     app.register_blueprint(productos_bp, url_prefix='/productos')
+    app.register_blueprint(reports_bp, url_prefix='/reportes')
 
     print(app.url_map)
 
