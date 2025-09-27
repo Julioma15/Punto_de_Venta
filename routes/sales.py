@@ -7,43 +7,33 @@ sales_bp = Blueprint('sales', __name__)
 
 #Defining a endpoint to create a sale (POST method)
 @sales_bp.route('/sales', methods = ['POST'])
-#@jwt_required
+@jwt_required
 def create_sale():
     
-    #current_user = get_jwt_identity()
+    current_user = get_jwt_identity()
 
     data = request.get_json()
 
-    ticket_id = data.get('ticket_id')
-    product_id = data.get('product_id')
+    products = data.get('products')
     quantity = data.get('quantity')
     
     connection = db_connection()
     cursor = connection.cursor()
     
-    query = 'select*from tickets where id_ticket = %s'
-    cursor.execute(query, (ticket_id, ))
-    ticket_product_conformation = cursor.fetchone()
-    query_2 = 'select*from productos where id_product = %s'
-    cursor.execute(query_2, (product_id, ))
-    product_confirmation = cursor.fetchone()
-    if not ticket_product_conformation or not product_confirmation: 
+    user_confirmation = 'select id_user from usuarios where id_user = %s'
+    cursor.execute(user_confirmation, (current_user, ))
+    ususario = cursor.fetchone()
+    
+    if not ususario[0] == int(current_user): 
         cursor.close()
-        return jsonify({"Error":"That ticket_id or product_id not exist"})
+        return jsonify({"Message":"Invalid credentials"})
+
+    ticket_id = cursor.execute('select ticket_id from ventas where ticket_id = (select max(ticket_id) from ventas)')
 
     cursor.execute('select price from productos where id_product = %s;', (product_id, ))
     unit_price = cursor.fetchone()
     total = unit_price[0]*quantity
-    
-    #user_confirmation = 'select id_user from employees where id_user = %s'
-    #cursor.execute(user_confirmation, (current_user, ))
-    #employee = cursor.fetchone()
-    '''
-    if not employee[0] == int(current_user): 
-        cursor.close()
-        return jsonify({"Message":"Invalid credentials"})
-    '''
-    
+     
     try: 
         query_3 = 'INSERT INTO ventas (ticket_id, product_id, unit_price, quantity, total) values (%s, %s, %s, %s, %s)'
         cursor.execute(query_3, (ticket_id, product_id, unit_price, quantity, total))
@@ -119,7 +109,7 @@ def get_receipt(ticket_id):
         # 2) Si es cashier, verificar propiedad del ticket
         if role_actual == "cashier":
             cursor.execute("SELECT created_by FROM tickets WHERE id_ticket = %s", (ticket_id,))
-            trow = cur.fetchone()
+            trow = cursor.fetchone()
             if not trow:
                 return jsonify({"error": "Ticket no encontrado"}), 404
             created_by = int(trow[0]) if trow[0] is not None else None
