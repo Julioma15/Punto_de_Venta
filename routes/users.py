@@ -44,8 +44,6 @@ def registrar_usuario():
         cursor = connection.cursor()
 
         # 1) Verificar que el usuario del token exista y sea ADMIN
-        #    (similar a “la tarea existe y el usuario logueado es el dueño”,
-        #     aquí la “condición” es ser admin).
         cursor.execute(
             "SELECT role FROM usuarios WHERE id_user = %s AND active = TRUE",
             (current_user_id,)
