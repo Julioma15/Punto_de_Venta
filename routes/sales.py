@@ -83,25 +83,38 @@ def get_all_sales():
     
     connection = db_connection()
     cursor = connection.cursor()
-
-    user_confirmation = 'select id_user from ventas where id_user = %s'
-    cursor.execute(user_confirmation, (current_user, ))
-    usuario = cursor.fetchone()
     
-    if not usuario[0] == int(current_user): 
+    cursor.execute('select role from usuarios where id_user = %s;', (current_user, ))
+    admin = cursor.fetchone()
+    if admin[0] != 'admin': 
+        user_confirmation = 'select id_user from ventas where id_user = %s'
+        cursor.execute(user_confirmation, (current_user, ))
+        usuario = cursor.fetchone()
+        
+        if not usuario[0] == int(current_user): 
+            cursor.close()
+            return jsonify({"Message":"Invalid credentials"})
+
+        query_2 = 'select *from ventas where id_user = %s'
+        cursor.execute(query_2, (current_user, )) 
+        user_sales = cursor.fetchall()
+
         cursor.close()
-        return jsonify({"Message":"Invalid credentials"})
-    
-    query_2 = 'select *from ventas where id_user = %s'
-    cursor.execute(query_2, (current_user, )) 
-    user_sales = cursor.fetchall()
 
-    cursor.close()
-
-    if not user_sales: 
-        return jsonify ({"Error":"The user does not have sales yet"})
+        if not user_sales: 
+            return jsonify ({"Error":"The user does not have sales yet"})
+        else: 
+            return jsonify ({"User's sales":user_sales}), 200
     else: 
-        return jsonify ({"User's sales":user_sales}), 200
+        cursor.execute('select*from ventas;') 
+        all_sales = cursor.fetchall()
+
+        cursor.close()
+
+        if not all_sales: 
+            return jsonify ({"Error":"Theres no sales to show yet"})
+        else: 
+            return jsonify ({"Total sales":all_sales}), 200
     
 #Retrieving a specific sale done by a user
 @sales_bp.route('/sales/<int:id_sale>', methods = ['GET'])
@@ -113,13 +126,16 @@ def get_one_sale(id_sale):
     connection = db_connection()
     cursor = connection.cursor()
 
-    user_confirmation = 'select id_user from ventas where id_sale = %s;'
-    cursor.execute(user_confirmation, (id_sale, ))
-    usuario = cursor.fetchone()
-    
-    if not usuario[0] == int(current_user): 
-        cursor.close()
-        return jsonify({"Message":"Invalid credentials"})
+    cursor.execute('select role from usuarios where id_user = %s;', (current_user, ))
+    admin = cursor.fetchone()
+    if admin[0] != 'admin': 
+        user_confirmation = 'select id_user from ventas where id_sale = %s;'
+        cursor.execute(user_confirmation, (id_sale, ))
+        usuario = cursor.fetchone()
+        
+        if not usuario[0] == int(current_user): 
+            cursor.close()
+            return jsonify({"Message":"Invalid credentials"})
  
     cursor.execute('select*from ventas where id_sale = %s', (id_sale, ))
     sale = cursor.fetchone()
@@ -139,13 +155,17 @@ def cancel_one_sale(id_sale):
     connection = db_connection()
     cursor = connection.cursor()
 
-    user_confirmation = 'select id_user from ventas where id_sale = %s;'
-    cursor.execute(user_confirmation, (id_sale, ))
-    usuario = cursor.fetchone()
-    
-    if not usuario[0] == int(current_user): 
-        cursor.close()
-        return jsonify({"Message":"Invalid credentials"})
+    cursor.execute('select role from usuarios where id_user = %s;', (current_user, ))
+    admin = cursor.fetchone()
+    if admin[0] != 'admin': 
+        user_confirmation = 'select id_user from ventas where id_sale = %s;'
+        cursor.execute(user_confirmation, (id_sale, ))
+        usuario = cursor.fetchone()
+        
+        if not usuario[0] == int(current_user): 
+            cursor.close()
+            return jsonify({"Message":"Invalid credentials"})
+
 
     cursor.execute ('select sale_state from ventas where id_sale = %s', (id_sale, ))
     already_canceled = cursor.fetchone()
@@ -163,10 +183,45 @@ def cancel_one_sale(id_sale):
     sale = cursor.fetchone()
     cursor.close()
     if not sale: 
-        return jsonify ({"Message:":f"Error en la cancela cion de la venta con el id_sale: {id_sale}"})
+        return jsonify ({"Message:":f"Error en la cancelacion de la venta con el id_sale: {id_sale}"})
     else:
         return jsonify({"Message": "venta cancelada exitosamente"}), 200
 
+#Delete a specific sale done by the administrators only
+@sales_bp.route('/sales/delete/<int:id_sale>', methods = ['DELETE'])
+@jwt_required()
+def delete_sale(id_sale): 
+
+    current_user = get_jwt_identity()
+
+    connection = db_connection()
+    cursor = connection.cursor()
+
+    user_confirmation = 'select role from usuarios where id_user = %s;'
+    cursor.execute(user_confirmation, (current_user, ))
+    usuario = cursor.fetchone()
+    
+    if usuario[0] != 'admin': 
+        cursor.close()
+        return jsonify({"Message":"you're not authorized to perform this operation"})
+
+    cursor.execute ('select*from ventas where id_sale = %s', (id_sale, ))
+    already_canceled = cursor.fetchone()
+
+    if not already_canceled[0]:
+        cursor.close()
+        return jsonify({"Message:":"Esa venta ya esta eliminada"})
+
+    cursor.execute('delete from ventas where id_sale = %s', (id_sale, ))
+    cursor.connection.commit()
+
+    cursor.execute('select*from ventas where id_sale = %s', (id_sale, ))
+    sale = cursor.fetchone()
+    cursor.close()
+    if not sale: 
+        return jsonify ({"Message:":f"venta eliminada exitosamente"}), 200
+    else:
+        return jsonify({"Message": "Error al eliminar la venta"})
 
 # GET /sales/<ticket_id>/receipt
 @sales_bp.route('/sales/<int:ticket_id>/receipt', methods=['GET'])
