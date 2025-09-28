@@ -29,13 +29,17 @@ def create_sale():
         return jsonify({"Message":"Invalid credentials"})
 
     #Checking if any of the products exist
-    products_confirmation = cursor.execute('select*from productos_inexistentes(%s)', (products, )) 
+    cursor.execute('select*from productos_inexistentes(%s)', (products, )) 
+
+    products_confirmation = cursor.fetchall()
 
     if products_confirmation: 
         cursor.close()
         return jsonify({"El o los productos no existen":products_confirmation})
     
-    stock_confirmation = cursor.execute('select*from productos_sin_stock (%s)', (products, ))
+    cursor.execute('select*from productos_sin_stock (%s)', (products, ))
+
+    stock_confirmation = cursor.fetchall()
 
     if stock_confirmation: 
         return jsonify ({"Sin stock:":stock_confirmation})
