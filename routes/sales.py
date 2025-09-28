@@ -44,7 +44,7 @@ def create_sale():
     if stock_confirmation: 
         return jsonify ({"Sin stock:":stock_confirmation})
     
-    cursor.execute('select*from obtener_precios_productos(%s)', (products, ))
+    cursor.execute('select*from obtener_precios_desde_productos(%s)', (products, ))
     unit_price = cursor.fetchall()
     total = 0
     print(products)
@@ -74,33 +74,30 @@ def create_sale():
 
 #Defining a endpoint to list the sales of an employee (GET method)
 @sales_bp.route('/sales', methods = ['GET'])
-#@jwt_required
+@jwt_required()
 def get_all_sales(): 
 
-    #current_user = get_jwt_identity()
+    current_user = get_jwt_identity()
     
-    data = request.get_json()
-    id_user = data.get('id_user')
-
     connection = db_connection()
     cursor = connection.cursor()
 
-    '''
-    user_confirmation = 'select*from employees where id_user = %s;'
-    employee = cursor.execute(user_confirmation, (id_user, ))
-    if not employee == int(id_user): 
-        cursor.close()
-        return jsonify({"Error":"Invalid credentials"})
-    '''
+    user_confirmation = 'select id_user from usuarios where id_user = %s'
+    cursor.execute(user_confirmation, (current_user, ))
+    usuario = cursor.fetchone()
     
-    query_2 = 'select *from ventas where ticket_id IN (select ticket_id from tickets where id_user = %s);'
-    cursor.execute(query_2, (id_user, )) 
+    if not usuario[0] == int(current_user): 
+        cursor.close()
+        return jsonify({"Message":"Invalid credentials"})
+    
+    query_2 = 'select *from ventas where id_user = %s'
+    cursor.execute(query_2, (current_user, )) 
     user_sales = cursor.fetchall()
 
     cursor.close()
 
     if not user_sales: 
-        return jsonify ({"Error":"The employee does not have sales yet"})
+        return jsonify ({"Error":"The user does not have sales yet"})
     else: 
         return jsonify ({"User's sales":user_sales}), 200
     
