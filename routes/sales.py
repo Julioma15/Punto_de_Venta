@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify
 from config.db import db_connection
 from flask_jwt_extended import jwt_required, get_jwt_identity
+import json
+from decimal import Decimal, InvalidOperation
 
 #Creating the blueprint 
 sales_bp = Blueprint('sales', __name__)
@@ -161,90 +163,126 @@ def cancel_one_sale(id_sale):
 
 # GET /sales/<ticket_id>/receipt
 from flask_jwt_extended import jwt_required, get_jwt_identity
+import json
+from decimal import Decimal, InvalidOperation
 
 @sales_bp.route('/sales/<int:ticket_id>/receipt', methods=['GET'])
 @jwt_required()
 def get_receipt(ticket_id):
     """
-    Devuelve la info del ticket usando SOLO ventas + nombre de producto.
-    Calcula line_total = unit_price * quantity (no hay columna total).
+    Recibo desde 'ventas' (1 fila por ticket).
     Acceso:
       - admin/manager: cualquier ticket
-      - cashier: solo tickets creados por él/ella (tickets.created_by)
+      - cashier: solo tickets cuyo ventas.id_user == current_user_id
     """
     current_user_id = get_jwt_identity()
     connection = db_connection()
     if not connection:
         return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
+
     cursor = connection.cursor()
     try:
-        # 1) Validar rol del usuario actual
+        # 1) Rol del usuario actual
         cursor.execute("SELECT role FROM usuarios WHERE id_user = %s AND active = TRUE", (current_user_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({"error": "Token inválido o usuario no encontrado"}), 401
-
         role_actual = (row[0] or "").lower()
         if role_actual not in ("admin", "manager", "cashier"):
             return jsonify({"error": "Usuario no autorizado"}), 403
 
-        # 2) Si es cashier, verificar propiedad del ticket
-        if role_actual == "cashier":
-            cursor.execute("SELECT created_by FROM tickets WHERE id_ticket = %s", (ticket_id,))
-            trow = cursor.fetchone()
-            if not trow:
-                return jsonify({"error": "Ticket no encontrado"}), 404
-            created_by = int(trow[0]) if trow[0] is not None else None
-            if created_by != int(current_user_id):
-                return jsonify({"error": "No tienes permiso para ver este recibo"}), 403
-
-        # 3) Traer líneas de venta del ticket
+        # 2) Obtener la fila de ventas del ticket (aquí también sabemos el dueño id_user)
         cursor.execute("""
             SELECT
-                v.product_id,
-                COALESCE(p.product_name, '') AS product_name,
-                v.unit_price,
-                v.quantity
-            FROM ventas v
-            LEFT JOIN productos p ON p.id_product = v.product_id
-            WHERE v.ticket_id = %s
-            ORDER BY v.id_sale;
+                ticket_id,
+                ticket_number,
+                sale_datetime,
+                sale_state,
+                id_user,        -- dueño/cajero que registró la venta
+                products,       -- text (posible JSON)
+                quantity,       -- text
+                unit_price,     -- text
+                total           -- numeric(10,2)
+            FROM ventas
+            WHERE ticket_id = %s
         """, (ticket_id,))
-        rows = cursor.fetchall()
+        v = cursor.fetchone()
+        if not v:
+            return jsonify({"error": "Ticket no encontrado"}), 404
 
-        if not rows:
-            # Si no hay líneas, validamos que el ticket exista para diferenciar 404
-            cursor.execute("SELECT 1 FROM tickets WHERE id_ticket = %s", (ticket_id,))
-            exists = cursor.fetchone()
-            if not exists:
-                return jsonify({"error": "Ticket no encontrado"}), 404
-            return jsonify({"error": "No hay ventas para ese ticket_id"}), 404
+        (_ticket_id, ticket_number, sale_datetime, sale_state, sale_user_id,
+         products_text, quantity_text, unit_price_text, total_numeric) = v
+
+        # 3) Si es cashier, sólo puede ver sus propios tickets
+        if role_actual == "cashier" and int(sale_user_id) != int(current_user_id):
+            return jsonify({"error": "No tienes permiso para ver este recibo"}), 403
+
+        # ---------- armado del recibo ----------
+        def to_decimal(x):
+            try: return Decimal(str(x))
+            except (InvalidOperation, TypeError, ValueError): return Decimal("0")
+
+        def to_int(x):
+            try: return int(Decimal(str(x)))
+            except (InvalidOperation, TypeError, ValueError): return 0
 
         items = []
-        subtotal = 0.0
-        for product_id, product_name, unit_price, quantity in rows:
-            up = float(unit_price or 0)
-            qty = int(quantity or 0)
-            line_total = up * qty
+        subtotal = Decimal("0")
+        parsed_ok = False
+
+        # 4) Si 'products' trae JSON (lista de líneas), úsalo
+        if products_text:
+            try:
+                data = json.loads(products_text)
+                if isinstance(data, list) and data:
+                    for it in data:
+                        pid = it.get("product_id") or it.get("id_product") or it.get("id") or None
+                        pname = it.get("product_name") or it.get("name") or ""
+                        up = to_decimal(it.get("unit_price"))
+                        qty = to_int(it.get("quantity"))
+                        line_total = (up * qty).quantize(Decimal("0.01"))
+                        items.append({
+                            "product_id": int(pid) if isinstance(pid, (int, float, str)) and str(pid).isdigit() else None,
+                            "product_name": pname,
+                            "unit_price": float(up),
+                            "quantity": qty,
+                            "line_total": float(line_total)
+                        })
+                        subtotal += line_total
+                    parsed_ok = True
+            except json.JSONDecodeError:
+                parsed_ok = False
+
+        # 5) Si no hay JSON válido, usa unit_price * quantity de la fila
+        if not parsed_ok:
+            up = to_decimal(unit_price_text)
+            qty = to_int(quantity_text)
+            line_total = (up * qty).quantize(Decimal("0.01"))
             items.append({
-                "product_id": int(product_id),
-                "product_name": product_name,
-                "unit_price": up,
+                "product_id": None,
+                "product_name": "",
+                "unit_price": float(up),
                 "quantity": qty,
-                "line_total": round(line_total, 2)
+                "line_total": float(line_total)
             })
             subtotal += line_total
 
-        taxes = 0.0  # ajusta si manejas impuestos
-        total = subtotal + taxes
+        taxes = Decimal("0.00")  # ajusta si manejas impuestos
+        total_calc = (subtotal + taxes).quantize(Decimal("0.01"))
+        total_db = Decimal(total_numeric or 0).quantize(Decimal("0.01"))
 
         return jsonify({
-            "ticket_id": int(ticket_id),
+            "ticket_id": int(_ticket_id),
+            "ticket_number": ticket_number,
+            "sale_datetime": str(sale_datetime) if sale_datetime else None,
+            "sale_state": sale_state,
+            "cashier_user_id": int(sale_user_id) if sale_user_id is not None else None,
             "items": items,
             "summary": {
-                "subtotal": round(subtotal, 2),
-                "taxes": round(taxes, 2),
-                "total": round(total, 2)
+                "subtotal": float(subtotal.quantize(Decimal("0.01"))),
+                "taxes": float(taxes),
+                "total_calculated": float(total_calc),
+                "total_db": float(total_db)
             }
         }), 200
 
