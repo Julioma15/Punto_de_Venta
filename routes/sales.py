@@ -113,14 +113,14 @@ def get_one_sale(id_sale):
     connection = db_connection()
     cursor = connection.cursor()
 
-    user_confirmation = 'select id_user from ventas where id_user = %s'
-    cursor.execute(user_confirmation, (current_user, ))
+    user_confirmation = 'select id_user from ventas where id_sale = %s;'
+    cursor.execute(user_confirmation, (id_sale, ))
     usuario = cursor.fetchone()
     
     if not usuario[0] == int(current_user): 
         cursor.close()
         return jsonify({"Message":"Invalid credentials"})
-
+ 
     cursor.execute('select*from ventas where id_sale = %s', (id_sale, ))
     sale = cursor.fetchone()
     cursor.close()
@@ -128,6 +128,44 @@ def get_one_sale(id_sale):
         return jsonify ({"Message:":f"That sale with the id_sale: {id_sale}, does not exist"}), 404
     else:
         return jsonify({"Sale": sale}), 200
+
+#Cancel a specific sale done by a user
+@sales_bp.route('/sales/<int:id_sale>/cancel', methods = ['PUT'])
+@jwt_required()
+def cancel_one_sale(id_sale): 
+
+    current_user = get_jwt_identity()
+
+    connection = db_connection()
+    cursor = connection.cursor()
+
+    user_confirmation = 'select id_user from ventas where id_sale = %s;'
+    cursor.execute(user_confirmation, (id_sale, ))
+    usuario = cursor.fetchone()
+    
+    if not usuario[0] == int(current_user): 
+        cursor.close()
+        return jsonify({"Message":"Invalid credentials"})
+
+    cursor.execute ('select sale_state from ventas where id_sale = %s', (id_sale, ))
+    already_canceled = cursor.fetchone()
+
+    if already_canceled[0] == 'Cancelada':
+        cursor.close()
+        return jsonify({"Message:":"Esa venta ya esta cancelada"})
+
+    sale_status = 'Cancelada'
+
+    cursor.execute('update ventas set sale_state = %s where id_sale = %s;', (sale_status, id_sale))
+    cursor.connection.commit()
+
+    cursor.execute('select sale_state from ventas where id_sale = %s', (id_sale, ))
+    sale = cursor.fetchone()
+    cursor.close()
+    if not sale: 
+        return jsonify ({"Message:":f"Error en la cancela cion de la venta con el id_sale: {id_sale}"})
+    else:
+        return jsonify({"Message": "venta cancelada exitosamente"}), 200
 
 
 # GET /sales/<ticket_id>/receipt
