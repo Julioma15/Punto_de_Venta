@@ -131,10 +131,6 @@ def get_one_sale(id_sale):
 
 
 # GET /sales/<ticket_id>/receipt
-from flask_jwt_extended import jwt_required, get_jwt_identity
-import json
-from decimal import Decimal, InvalidOperation
-
 @sales_bp.route('/sales/<int:ticket_id>/receipt', methods=['GET'])
 @jwt_required()
 def get_receipt(ticket_id):
@@ -146,9 +142,6 @@ def get_receipt(ticket_id):
     """
     current_user_id = get_jwt_identity()
     connection = db_connection()
-    if not connection:
-        return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
-
     cursor = connection.cursor()
     try:
         # 1) Rol del usuario actual
