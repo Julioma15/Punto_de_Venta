@@ -37,14 +37,14 @@ def create_sale():
 
     if products_confirmation: 
         cursor.close()
-        return jsonify({"El o los productos no existen":products_confirmation})
+        return jsonify({"The product(s) does not exist.":products_confirmation})
     
     cursor.execute('select*from productos_sin_stock (%s)', (products, ))
 
     stock_confirmation = cursor.fetchall()
 
     if stock_confirmation: 
-        return jsonify ({"Sin stock:":stock_confirmation})
+        return jsonify ({"Empty stock:":stock_confirmation})
     
     cursor.execute('select*from obtener_precios_desde_productos(%s)', (products, ))
     unit_price = cursor.fetchall()
@@ -172,7 +172,7 @@ def cancel_one_sale(id_sale):
 
     if already_canceled[0] == 'Cancelada':
         cursor.close()
-        return jsonify({"Message:":"Esa venta ya esta cancelada"})
+        return jsonify({"Message:":"That sale has already been canceled."})
 
     sale_status = 'Cancelada'
 
@@ -183,9 +183,9 @@ def cancel_one_sale(id_sale):
     sale = cursor.fetchone()
     cursor.close()
     if not sale: 
-        return jsonify ({"Message:":f"Error en la cancelacion de la venta con el id_sale: {id_sale}"})
+        return jsonify ({"Message:":f"Error when canceling the sale with id_sale: {id_sale}"})
     else:
-        return jsonify({"Message": "venta cancelada exitosamente"}), 200
+        return jsonify({"Message": "sale successfully canceled"}), 200
 
 #Delete a specific sale done by the administrators only
 @sales_bp.route('/sales/delete/<int:id_sale>', methods = ['DELETE'])
@@ -210,7 +210,7 @@ def delete_sale(id_sale):
 
     if not already_canceled[0]:
         cursor.close()
-        return jsonify({"Message:":"Esa venta ya esta eliminada"})
+        return jsonify({"Message:":"That sale has already been deleted"})
 
     cursor.execute('delete from ventas where id_sale = %s', (id_sale, ))
     cursor.connection.commit()
@@ -219,9 +219,9 @@ def delete_sale(id_sale):
     sale = cursor.fetchone()
     cursor.close()
     if not sale: 
-        return jsonify ({"Message:":f"venta eliminada exitosamente"}), 200
+        return jsonify ({"Message:":f"sale successfully deleted"}), 200
     else:
-        return jsonify({"Message": "Error al eliminar la venta"})
+        return jsonify({"Message": "Error deleting sale"})
 
 # GET /sales/<ticket_id>/receipt
 @sales_bp.route('/sales/<int:ticket_id>/receipt', methods=['GET'])
