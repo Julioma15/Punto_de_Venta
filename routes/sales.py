@@ -120,7 +120,7 @@ def get_one_sale(id_sale):
     if not usuario[0] == int(current_user): 
         cursor.close()
         return jsonify({"Message":"Invalid credentials"})
-
+ 
     cursor.execute('select*from ventas where id_sale = %s', (id_sale, ))
     sale = cursor.fetchone()
     cursor.close()
@@ -146,6 +146,13 @@ def cancel_one_sale(id_sale):
     if not usuario[0] == int(current_user): 
         cursor.close()
         return jsonify({"Message":"Invalid credentials"})
+
+    cursor.execute ('select sale_state from ventas where id_sale = %s', (id_sale, ))
+    already_canceled = cursor.fetchone()
+
+    if already_canceled[0] == 'Cancelada':
+        cursor.close()
+        return jsonify({"Message:":"Esa venta ya esta cancelada"})
 
     sale_status = 'Cancelada'
 
