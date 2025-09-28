@@ -20,7 +20,7 @@ def sales_summary():
         if role_actual not in ("admin", "manager"):
             return jsonify({"error": "Usuario no autorizado (solo admin/manager)"}), 403
 
-        # ✅ Usa 'total' (NUMERIC) en lugar de unit_price * quantity
+        #Usa 'total' (NUMERIC) en lugar de unit_price * quantity
         cursor.execute("""
             SELECT 
                 COALESCE(SUM(v.total), 0) AS total_amount,
@@ -64,7 +64,7 @@ def sales_employee():
         if role_actual not in ("admin", "manager"):
             return jsonify({"error": "Usuario no autorizado (solo admin/manager)"}), 403
 
-        # ✅ Usa 'total' para importes; castea quantity sólo si es numérica (regex)
+        #Usa 'total' para importes; castea quantity sólo si es numérica (regex)
         cursor.execute("""
             SELECT 
                 v.id_user,
