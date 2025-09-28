@@ -22,21 +22,40 @@ def create_sale():
     
     user_confirmation = 'select id_user from usuarios where id_user = %s'
     cursor.execute(user_confirmation, (current_user, ))
-    ususario = cursor.fetchone()
+    usuario = cursor.fetchone()
     
-    if not ususario[0] == int(current_user): 
+    if not usuario[0] == int(current_user): 
         cursor.close()
         return jsonify({"Message":"Invalid credentials"})
 
-    ticket_id = cursor.execute('select ticket_id from ventas where ticket_id = (select max(ticket_id) from ventas)')
+    #Checking if any of the products exist
+    products_confirmation = cursor.execute('select*from productos_inexistentes(%s)', (products, )) 
 
-    cursor.execute('select price from productos where id_product = %s;', (product_id, ))
-    unit_price = cursor.fetchone()
-    total = unit_price[0]*quantity
-     
+    if products_confirmation: 
+        cursor.close()
+        return jsonify({"El o los productos no existen":products_confirmation})
+    
+    stock_confirmation = cursor.execute('select*from productos_sin_stock (%s)', (products, ))
+
+    if stock_confirmation: 
+        return jsonify ({"Sin stock:":stock_confirmation})
+    
+    cursor.execute('select*from obtener_precios_productos(%s)', (products, ))
+    unit_price = cursor.fetchall()
+    for i in unit_price: 
+        total = total + (unit_price[1]*quantity[i])
+    
+    last_ticket_id = cursor.execute('select ticket_id from ventas where ticket_id = (select max(ticket_id) from ventas)')
+    ticket_number = 'TCK-'+ str(last_ticket_id[0] + 1)
+    ticket_id = last_ticket_id[0] + 1
+
+    sale_datetime = cursor.execute('select localtimestamp;')
+
+    sale_state = 'Procesada'
+
     try: 
-        query_3 = 'INSERT INTO ventas (ticket_id, product_id, unit_price, quantity, total) values (%s, %s, %s, %s, %s)'
-        cursor.execute(query_3, (ticket_id, product_id, unit_price, quantity, total))
+        query_3 = 'INSERT INTO ventas (ticket_id, quantity, unit_price, total, id_user, ticket_number, sale_datetime, sale_state, products) values (%s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        cursor.execute(query_3, (ticket_id, quantity, unit_price, total, int(current_user), ticket_number, sale_datetime, sale_state, products))
         cursor.connection.commit()
         return jsonify({"Message":"sale completed"})
     except Exception as error: 
