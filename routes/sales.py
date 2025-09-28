@@ -82,7 +82,7 @@ def get_all_sales():
     connection = db_connection()
     cursor = connection.cursor()
 
-    user_confirmation = 'select id_user from usuarios where id_user = %s'
+    user_confirmation = 'select id_user from ventas where id_user = %s'
     cursor.execute(user_confirmation, (current_user, ))
     usuario = cursor.fetchone()
     
@@ -101,6 +101,32 @@ def get_all_sales():
     else: 
         return jsonify ({"User's sales":user_sales}), 200
     
+#Retrieving a specific sale done by a user
+@sales_bp.route('/sales/<int:id_sale>', methods = ['GET'])
+@jwt_required()
+def get_one_sale(id_sale): 
+
+    current_user = get_jwt_identity()
+
+    connection = db_connection()
+    cursor = connection.cursor()
+
+    user_confirmation = 'select id_user from ventas where id_user = %s'
+    cursor.execute(user_confirmation, (current_user, ))
+    usuario = cursor.fetchone()
+    
+    if not usuario[0] == int(current_user): 
+        cursor.close()
+        return jsonify({"Message":"Invalid credentials"})
+
+    cursor.execute('select*from ventas where id_sale = %s', (id_sale, ))
+    sale = cursor.fetchone()
+    cursor.close()
+    if not sale: 
+        return jsonify ({"Message:":f"That sale with the id_sale: {id_sale}, does not exist"}), 404
+    else:
+        return jsonify({"Sale": sale}), 200
+
 
 # GET /sales/<ticket_id>/receipt
 from flask_jwt_extended import jwt_required, get_jwt_identity
