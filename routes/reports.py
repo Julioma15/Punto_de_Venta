@@ -15,10 +15,10 @@ def sales_summary():
         cursor.execute("SELECT role FROM usuarios WHERE id_user = %s AND active = TRUE", (current_user_id,))
         row = cursor.fetchone()
         if not row:
-            return jsonify({"error": "Token inválido o usuario no encontrado"}), 401
+            return jsonify({"error": "Invalid token or user not found"}), 401
         role_actual = (row[0] or "").lower()
         if role_actual not in ("admin", "manager"):
-            return jsonify({"error": "Usuario no autorizado (solo admin/manager)"}), 403
+            return jsonify({"error": "Unathorized user (only admin/manager)"}), 403
 
         #Usa 'total' (NUMERIC) en lugar de unit_price * quantity
         cursor.execute("""
@@ -39,7 +39,7 @@ def sales_summary():
         }), 200
 
     except Exception as e:
-        return jsonify({"error": f"Error en sales-summary: {str(e)}"}), 500
+        return jsonify({"error": f"Error in sales-summary: {str(e)}"}), 500
     finally:
         try:
             cursor.close()
@@ -59,10 +59,10 @@ def sales_employee():
         cursor.execute("SELECT role FROM usuarios WHERE id_user = %s AND active = TRUE", (current_user_id,))
         row = cursor.fetchone()
         if not row:
-            return jsonify({"error": "Token inválido o usuario no encontrado"}), 401
+            return jsonify({"error": "Invalid token or user not found"}), 401
         role_actual = (row[0] or "").lower()
         if role_actual not in ("admin", "manager"):
-            return jsonify({"error": "Usuario no autorizado (solo admin/manager)"}), 403
+            return jsonify({"error": "Unathorized user (only admin/manager)"}), 403
 
         #Usa 'total' para importes; castea quantity sólo si es numérica (regex)
         cursor.execute("""
@@ -92,7 +92,7 @@ def sales_employee():
         return jsonify(result), 200
 
     except Exception as e:
-        return jsonify({"error": f"Error en sales-employee: {str(e)}"}), 500
+        return jsonify({"error": f"Error in sales-employee: {str(e)}"}), 500
     finally:
         try:
             cursor.close()

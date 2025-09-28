@@ -12,7 +12,7 @@ ROLES_PERMITIDOS = {'admin', 'cashier', 'manager'}
 def validar_campos_requeridos(data, campos):
     faltantes = [campo for campo in campos if not data.get(campo)]
     if faltantes:
-        return False, f"Por favor rellena los siguientes campos: {', '.join(faltantes)}"
+        return False, f"Fill in the missing fields: {', '.join(faltantes)}"
     return True, None
 
 # Registro de usuarios
@@ -33,11 +33,11 @@ def registrar_usuario():
     role = (data.get("role") or "").strip().lower()
 
     if role not in ROLES_PERMITIDOS:
-        return jsonify({"error": f"Role inválido. Usa: {', '.join(sorted(ROLES_PERMITIDOS))}"}), 400
+        return jsonify({"error": f"Invalid role. Use: {', '.join(sorted(ROLES_PERMITIDOS))}"}), 400
 
     connection = db_connection()
     if not connection:
-        return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
+        return jsonify({"error": "Couldnt connect to DB"}), 500
 
     cursor = None
     try:
@@ -50,16 +50,16 @@ def registrar_usuario():
         )
         row = cursor.fetchone()
         if not row:
-            return jsonify({"error": "Token inválido o usuario no encontrado"}), 401
+            return jsonify({"error": "Invalid token or user not found"}), 401
 
         role_actual = (row[0] or "").lower()
         if role_actual != "admin":
-            return jsonify({"error": "Usuario no autorizado (solo admin puede crear usuarios)"}), 403
+            return jsonify({"error": "Unathorized user (only admin)"}), 403
 
         # 2) Verificar que no exista ya ese username
         cursor.execute("SELECT 1 FROM usuarios WHERE username = %s", (username,))
         if cursor.fetchone():
-            return jsonify({"error": "Ya existe un usuario con ese username"}), 400
+            return jsonify({"error": "Username already exists"}), 400
 
         # 3) Insertar usuario nuevo
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
@@ -68,12 +68,12 @@ def registrar_usuario():
             (username, hashed_password, role)
         )
         connection.commit()
-        return jsonify({"mensaje": f"Usuario {username} [{role}] creado"}), 201
+        return jsonify({"mensaje": f"User {username} [{role}] created"}), 201
 
     except Exception as e:
         if connection:
             connection.rollback()
-        return jsonify({"error": f"Error al registrar el usuario: {str(e)}"}), 500
+        return jsonify({"error": f"Error while creating user: {str(e)}"}), 500
     finally:
         if cursor:
             cursor.close()
@@ -94,7 +94,7 @@ def login():
 
     connection = db_connection()
     if not connection:
-        return jsonify({"error": "No se pudo conectar a la base de datos"}), 500
+        return jsonify({"error": "Couldnt connect to DB"}), 500
 
     cursor = None
     try:
@@ -110,10 +110,10 @@ def login():
             access_token = create_access_token(identity=str(row[1]), expires_delta=expires)
             return jsonify({"accessToken": access_token}), 200
 
-        return jsonify({"error": "Credenciales incorrectas"}), 401
+        return jsonify({"error": "Incorrect credencials"}), 401
 
     except Exception as e:
-        return jsonify({"error": f"Error en login: {str(e)}"}), 500
+        return jsonify({"error": f"Error while trying to login: {str(e)}"}), 500
     finally:
         if cursor:
             cursor.close()
