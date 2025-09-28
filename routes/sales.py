@@ -7,7 +7,7 @@ sales_bp = Blueprint('sales', __name__)
 
 #Defining a endpoint to create a sale (POST method)
 @sales_bp.route('/sales', methods = ['POST'])
-@jwt_required
+@jwt_required()
 def create_sale():
     
     current_user = get_jwt_identity()
@@ -42,20 +42,25 @@ def create_sale():
     
     cursor.execute('select*from obtener_precios_productos(%s)', (products, ))
     unit_price = cursor.fetchall()
-    for i in unit_price: 
-        total = total + (unit_price[1]*quantity[i])
+    total = 0
+    print(products)
+    for i in range(len(unit_price)): 
+        price = float(unit_price[i][1])
+        total += price*float(quantity[i])
     
-    last_ticket_id = cursor.execute('select ticket_id from ventas where ticket_id = (select max(ticket_id) from ventas)')
+    cursor.execute('select ticket_id from ventas where ticket_id = (select max(ticket_id) from ventas)')
+    last_ticket_id = cursor.fetchone()
     ticket_number = 'TCK-'+ str(last_ticket_id[0] + 1)
     ticket_id = last_ticket_id[0] + 1
 
-    sale_datetime = cursor.execute('select localtimestamp;')
+    cursor.execute('select localtimestamp;')
+    sale_datetime = cursor.fetchone()
 
     sale_state = 'Procesada'
 
     try: 
         query_3 = 'INSERT INTO ventas (ticket_id, quantity, unit_price, total, id_user, ticket_number, sale_datetime, sale_state, products) values (%s, %s, %s, %s, %s, %s, %s, %s, %s)'
-        cursor.execute(query_3, (ticket_id, quantity, unit_price, total, int(current_user), ticket_number, sale_datetime, sale_state, products))
+        cursor.execute(query_3, (ticket_id, quantity, unit_price, total, current_user, ticket_number, sale_datetime, sale_state, products))
         cursor.connection.commit()
         return jsonify({"Message":"sale completed"})
     except Exception as error: 
