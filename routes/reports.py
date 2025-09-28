@@ -1,6 +1,6 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify
 from config.db import db_connection
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -20,17 +20,16 @@ def sales_summary():
         if role_actual not in ("admin", "manager"):
             return jsonify({"error": "Usuario no autorizado (solo admin/manager)"}), 403
 
-        # Query de reporte
+        # ✅ Usa 'total' (NUMERIC) en lugar de unit_price * quantity
         cursor.execute("""
             SELECT 
-                COALESCE(SUM(v.unit_price * v.quantity), 0) AS total_amount,
+                COALESCE(SUM(v.total), 0) AS total_amount,
                 COUNT(DISTINCT v.ticket_id) AS tickets
             FROM ventas v;
         """)
-        row = cursor.fetchone()
-
-        total_amount = float(row[0] or 0)
-        tickets = int(row[1] or 0)
+        total_amount, tickets = cursor.fetchone()
+        total_amount = float(total_amount or 0)
+        tickets = int(tickets or 0)
         avg_ticket = round(total_amount / tickets, 2) if tickets > 0 else 0.0
 
         return jsonify({
@@ -42,9 +41,11 @@ def sales_summary():
     except Exception as e:
         return jsonify({"error": f"Error en sales-summary: {str(e)}"}), 500
     finally:
-        cursor.close()
-        connection.close()
-
+        try:
+            cursor.close()
+            connection.close()
+        except:
+            pass
 
 
 @reports_bp.route('/reports/sales-employee', methods=['GET'])
@@ -63,16 +64,20 @@ def sales_employee():
         if role_actual not in ("admin", "manager"):
             return jsonify({"error": "Usuario no autorizado (solo admin/manager)"}), 403
 
-        # Query de reporte (ajusta según tu DDL)
+        # ✅ Usa 'total' para importes; castea quantity sólo si es numérica (regex)
         cursor.execute("""
             SELECT 
-                t.created_by AS id_user,
+                v.id_user,
                 COUNT(DISTINCT v.ticket_id) AS tickets,
-                COALESCE(SUM(v.unit_price * v.quantity), 0) AS total_amount,
-                COALESCE(SUM(v.quantity), 0) AS total_units
+                COALESCE(SUM(v.total), 0) AS total_amount,
+                COALESCE(SUM(
+                    CASE 
+                        WHEN v.quantity ~ '^[0-9]+(\\.[0-9]+)?$' THEN v.quantity::numeric
+                        ELSE 0
+                    END
+                ), 0) AS total_units
             FROM ventas v
-            JOIN tickets t ON t.id_ticket = v.ticket_id
-            GROUP BY t.created_by
+            GROUP BY v.id_user
             ORDER BY total_amount DESC;
         """)
         rows = cursor.fetchall()
@@ -81,7 +86,7 @@ def sales_employee():
             "id_user": int(r[0]) if r[0] is not None else None,
             "tickets": int(r[1] or 0),
             "total_amount": float(r[2] or 0),
-            "total_units": int(r[3] or 0)
+            "total_units": float(r[3] or 0)  # puede ser fraccional si quantity trae decimales
         } for r in rows]
 
         return jsonify(result), 200
@@ -89,5 +94,8 @@ def sales_employee():
     except Exception as e:
         return jsonify({"error": f"Error en sales-employee: {str(e)}"}), 500
     finally:
-        cursor.close()
-        connection.close()
+        try:
+            cursor.close()
+            connection.close()
+        except:
+            pass
