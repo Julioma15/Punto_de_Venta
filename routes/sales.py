@@ -60,6 +60,7 @@ def create_sale():
     if last_ticket_id is None: 
         last_ticket_id = 1
         ticket_number = 'TCK-'+ str(last_ticket_id)
+        ticket_id = last_ticket_id
     else:
         ticket_number = 'TCK-'+ str(last_ticket_id[0] + 1)
         ticket_id = last_ticket_id[0] + 1
