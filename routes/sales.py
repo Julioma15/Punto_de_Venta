@@ -57,7 +57,7 @@ def create_sale():
     cursor.execute('select ticket_id from ventas where ticket_id = (select max(ticket_id) from ventas)')
     last_ticket_id = cursor.fetchone()
 
-    if last_ticket_id[0] == None: 
+    if last_ticket_id[0] == False: 
         last_ticket_id [0] = 1
         ticket_number = 'TCK-'+ str(last_ticket_id[0])
     else:
