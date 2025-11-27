@@ -56,8 +56,13 @@ def create_sale():
     
     cursor.execute('select ticket_id from ventas where ticket_id = (select max(ticket_id) from ventas)')
     last_ticket_id = cursor.fetchone()
-    ticket_number = 'TCK-'+ str(last_ticket_id[0] + 1)
-    ticket_id = last_ticket_id[0] + 1
+
+    if last_ticket_id == None: 
+        last_ticket_id = 1
+        ticket_number = 'TCK-'+ str(last_ticket_id[0])
+    else:
+        ticket_number = 'TCK-'+ str(last_ticket_id[0] + 1)
+        ticket_id = last_ticket_id[0] + 1
 
     cursor.execute('select localtimestamp;')
     sale_datetime = cursor.fetchone()
