@@ -236,7 +236,7 @@ def create_thumbnail(image_path, thumbnail_path):
 # ENDPOINTS PARA IMÁGENES
 # ============================================
 
-@productos_bp.route('/productos/<int:producto_id>/imagen', methods=['POST'])
+@productos_bp.route('/<int:producto_id>/imagen', methods=['POST'])
 def subir_imagen_producto(producto_id):
     """Subir o actualizar imagen de un producto"""
     
@@ -333,7 +333,7 @@ def subir_imagen_producto(producto_id):
             'error': str(e)
         }), 500
 
-@productos_bp.route('/productos/<int:producto_id>/imagen', methods=['DELETE'])
+@productos_bp.route('/<int:producto_id>/imagen', methods=['DELETE'])
 def eliminar_imagen_producto(producto_id):
     """Eliminar imagen de un producto"""
     from app import get_db_connection
