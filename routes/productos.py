@@ -264,7 +264,7 @@ def subir_imagen_producto(producto_id):
         # Verificar que el producto existe
         conn = db_connection()
         cur = conn.cursor()
-        cur.execute('SELECT id_product, imagen_url, imagen_thumbnail FROM products WHERE id_product = %s', (producto_id,))
+        cur.execute('SELECT id_product, imagen_url, imagen_thumbnail FROM productos WHERE id_product = %s', (producto_id,))
         producto = cur.fetchone()
         
         if not producto:
@@ -342,7 +342,7 @@ def eliminar_imagen_producto(producto_id):
         conn = db_connection()
         cur = conn.cursor()
         
-        cur.execute('SELECT imagen_url, imagen_thumbnail FROM products WHERE id_product = %s', (producto_id,))
+        cur.execute('SELECT imagen_url, imagen_thumbnail FROM productos WHERE id_product = %s', (producto_id,))
         producto = cur.fetchone()
         
         if not producto:
@@ -372,7 +372,7 @@ def eliminar_imagen_producto(producto_id):
         
         # Actualizar base de datos
         cur.execute(
-            'UPDATE products SET imagen_url = NULL, imagen_thumbnail = NULL WHERE id_product = %s',
+            'UPDATE productos SET imagen_url = NULL, imagen_thumbnail = NULL WHERE id_product = %s',
             (producto_id,)
         )
         conn.commit()
