@@ -1,6 +1,9 @@
 from flask import Blueprint, jsonify, request
 from config.db import db_connection
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from PIL import Image
+import os
+import uuid
 
 productos_bp = Blueprint('productos', __name__)
 
@@ -196,3 +199,193 @@ def Agregar_Productos():
     finally:
         cursor.close()
         connection.close()
+
+# Para agregar la imagen al producto correspondiente
+UPLOAD_FOLDER = 'static/productos'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+THUMBNAIL_SIZE = (300, 300)
+
+# Crear directorios si no existen
+os.makedirs(os.path.join(UPLOAD_FOLDER, 'full'), exist_ok=True)
+os.makedirs(os.path.join(UPLOAD_FOLDER, 'thumbnails'), exist_ok=True)
+
+def allowed_file(filename):
+    """Verifica si el archivo es una imagen válida"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def create_thumbnail(image_path, thumbnail_path):
+    """Crea una miniatura optimizada de la imagen"""
+    try:
+        with Image.open(image_path) as img:
+            # Convertir a RGB si es necesario
+            if img.mode in ('RGBA', 'LA', 'P'):
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                img = background
+            
+            # Crear thumbnail manteniendo proporción
+            img.thumbnail(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
+            img.save(thumbnail_path, 'JPEG', quality=85, optimize=True)
+        return True
+    except Exception as e:
+        print(f"Error creando thumbnail: {e}")
+        return False
+
+# ============================================
+# ENDPOINTS PARA IMÁGENES
+# ============================================
+
+@productos_bp.route('/productos/<int:producto_id>/imagen', methods=['POST'])
+def subir_imagen_producto(producto_id):
+    """Subir o actualizar imagen de un producto"""
+    
+    if 'imagen' not in request.files:
+        return jsonify({
+            'success': False,
+            'error': 'No se envió ninguna imagen'
+        }), 400
+    
+    file = request.files['imagen']
+    
+    if file.filename == '':
+        return jsonify({
+            'success': False,
+            'error': 'Nombre de archivo vacío'
+        }), 400
+    
+    if not allowed_file(file.filename):
+        return jsonify({
+            'success': False,
+            'error': f'Tipo de archivo no permitido. Use: {", ".join(ALLOWED_EXTENSIONS)}'
+        }), 400
+    
+    try:
+        # Verificar que el producto existe
+        conn = db_connection()
+        cur = conn.cursor()
+        cur.execute('SELECT id_product, imagen_url, imagen_thumbnail FROM products WHERE id_product = %s', (producto_id,))
+        producto = cur.fetchone()
+        
+        if not producto:
+            cur.close()
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'Producto no encontrado'
+            }), 404
+        
+        # Generar nombre único para el archivo
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = f"{uuid.uuid4()}.{ext}"
+        
+        # Rutas completas
+        full_path = os.path.join(UPLOAD_FOLDER, 'full', filename)
+        thumbnail_filename = f"thumb_{filename.rsplit('.', 1)[0]}.jpg"
+        thumbnail_path = os.path.join(UPLOAD_FOLDER, 'thumbnails', thumbnail_filename)
+        
+        # Guardar imagen completa
+        file.save(full_path)
+        
+        # Crear thumbnail
+        if not create_thumbnail(full_path, thumbnail_path):
+            thumbnail_filename = None
+        
+        # URLs para la base de datos
+        imagen_url = f"/static/productos/full/{filename}"
+        thumbnail_url = f"/static/productos/thumbnails/{thumbnail_filename}" if thumbnail_filename else None
+        
+        # Eliminar imágenes anteriores si existen
+        if producto[1]:
+            old_full = producto[1].replace('/static/', 'static/')
+            if os.path.exists(old_full):
+                try:
+                    os.remove(old_full)
+                except:
+                    pass
+        if producto[2]:
+            old_thumb = producto[2].replace('/static/', 'static/')
+            if os.path.exists(old_thumb):
+                try:
+                    os.remove(old_thumb)
+                except:
+                    pass
+        
+        # Actualizar base de datos
+        cur.execute(
+            'UPDATE products SET imagen_url = %s, imagen_thumbnail = %s WHERE id_product = %s',
+            (imagen_url, thumbnail_url, producto_id)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'mensaje': 'Imagen subida exitosamente',
+            'imagen_url': request.host_url.rstrip('/') + imagen_url,
+            'thumbnail_url': request.host_url.rstrip('/') + thumbnail_url if thumbnail_url else None
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@productos_bp.route('/productos/<int:producto_id>/imagen', methods=['DELETE'])
+def eliminar_imagen_producto(producto_id):
+    """Eliminar imagen de un producto"""
+    from app import get_db_connection
+    
+    try:
+        conn = db_connection()
+        cur = conn.cursor()
+        
+        cur.execute('SELECT imagen_url, imagen_thumbnail FROM products WHERE id_product = %s', (producto_id,))
+        producto = cur.fetchone()
+        
+        if not producto:
+            cur.close()
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'Producto no encontrado'
+            }), 404
+        
+        # Eliminar archivos del sistema
+        if producto[0]:
+            full_path = producto[0].replace('/static/', 'static/')
+            if os.path.exists(full_path):
+                try:
+                    os.remove(full_path)
+                except:
+                    pass
+        
+        if producto[1]:
+            thumb_path = producto[1].replace('/static/', 'static/')
+            if os.path.exists(thumb_path):
+                try:
+                    os.remove(thumb_path)
+                except:
+                    pass
+        
+        # Actualizar base de datos
+        cur.execute(
+            'UPDATE products SET imagen_url = NULL, imagen_thumbnail = NULL WHERE id_product = %s',
+            (producto_id,)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'mensaje': 'Imagen eliminada exitosamente'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
