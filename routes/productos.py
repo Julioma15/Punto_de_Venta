@@ -313,7 +313,7 @@ def subir_imagen_producto(producto_id):
         
         # Actualizar base de datos
         cur.execute(
-            'UPDATE products SET imagen_url = %s, imagen_thumbnail = %s WHERE id_product = %s',
+            'UPDATE productos SET imagen_url = %s, imagen_thumbnail = %s WHERE id_product = %s',
             (imagen_url, thumbnail_url, producto_id)
         )
         conn.commit()
