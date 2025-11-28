@@ -237,6 +237,7 @@ def create_thumbnail(image_path, thumbnail_path):
 # ============================================
 
 @productos_bp.route('/<int:producto_id>/imagen', methods=['POST'])
+@jwt_required()
 def subir_imagen_producto(producto_id):
     """Subir o actualizar imagen de un producto"""
     
@@ -334,6 +335,7 @@ def subir_imagen_producto(producto_id):
         }), 500
 
 @productos_bp.route('/<int:producto_id>/imagen', methods=['DELETE'])
+@jwt_required()
 def eliminar_imagen_producto(producto_id):
     """Eliminar imagen de un producto"""
     from app import get_db_connection
