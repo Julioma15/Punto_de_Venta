@@ -6,7 +6,7 @@ from routes.productos import productos_bp
 from routes.users import users_bp
 from routes.sales import sales_bp
 from routes.reports import reports_bp
-from PIL import Image
+
 #Cargar las Variables de entorno
 load_dotenv()
 
@@ -30,9 +30,7 @@ def create_app():
     app.register_blueprint(reports_bp, url_prefix='/reportes')
 
     # Enedpoint para servir los archivo estaticos (imagenes)
-    @app.route('/static/<path:filename>')
-    def serve_static(filename):
-        return send_from_directory('static', filename)
+    #return send_from_directory('static', filename)
 
     print(app.url_map)
 

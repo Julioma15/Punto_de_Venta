@@ -1,9 +1,10 @@
 from flask import Blueprint, jsonify, request
 from config.db import db_connection
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from PIL import Image
 import os
 import uuid
+import cv2
+import numpy as np
 
 productos_bp = Blueprint('productos', __name__)
 
@@ -215,18 +216,32 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def create_thumbnail(image_path, thumbnail_path):
-    """Crea una miniatura optimizada de la imagen"""
+    """Crea una miniatura optimizada de la imagen usando OpenCV"""
     try:
-        with Image.open(image_path) as img:
-            # Convertir a RGB si es necesario
-            if img.mode in ('RGBA', 'LA', 'P'):
-                background = Image.new('RGB', img.size, (255, 255, 255))
-                background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
-                img = background
-            
-            # Crear thumbnail manteniendo proporción
-            img.thumbnail(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
-            img.save(thumbnail_path, 'JPEG', quality=85, optimize=True)
+        # Leer la imagen
+        img = cv2.imread(image_path)
+        
+        if img is None:
+            print(f"Error: No se pudo leer la imagen {image_path}")
+            return False
+        
+        # Obtener dimensiones originales
+        height, width = img.shape[:2]
+        
+        # Calcular nuevas dimensiones manteniendo el aspect ratio
+        if width > height:
+            new_width = THUMBNAIL_SIZE[0]
+            new_height = int(height * (THUMBNAIL_SIZE[0] / width))
+        else:
+            new_height = THUMBNAIL_SIZE[1]
+            new_width = int(width * (THUMBNAIL_SIZE[1] / height))
+        
+        # Redimensionar la imagen
+        thumbnail = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
+        
+        # Guardar el thumbnail como JPEG con buena calidad
+        cv2.imwrite(thumbnail_path, thumbnail, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        
         return True
     except Exception as e:
         print(f"Error creando thumbnail: {e}")
@@ -388,4 +403,3 @@ def eliminar_imagen_producto(producto_id):
             'success': False,
             'error': str(e)
         }), 500
-    
