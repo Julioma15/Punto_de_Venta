@@ -34,16 +34,6 @@ def create_app():
     def serve_static(filename):
         return send_from_directory('static', filename)
 
-
-    @app.route('/test_pillow')
-    def test_pillow():
-        try:
-            # Crear una imagen en memoria 100x100 px
-            img = Image.new('RGB', (100, 100), color='red')
-            return jsonify({"success": True, "message": "Pillow está funcionando!"})
-        except Exception as e:
-            return jsonify({"success": False, "error": str(e)})
-
     print(app.url_map)
 
     return app
