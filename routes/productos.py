@@ -337,9 +337,6 @@ def subir_imagen_producto(producto_id):
 @productos_bp.route('/<int:producto_id>/imagen', methods=['DELETE'])
 @jwt_required()
 def eliminar_imagen_producto(producto_id):
-    """Eliminar imagen de un producto"""
-    from app import get_db_connection
-    
     try:
         conn = db_connection()
         cur = conn.cursor()

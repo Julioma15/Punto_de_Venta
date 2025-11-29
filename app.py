@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_jwt_extended import JWTManager
 import os
 from dotenv import load_dotenv
@@ -18,12 +18,20 @@ def create_app():
     app.config['JWT_SECRET_KEY']= os.getenv('JWT_SECRET_KEY')
     jwt=JWTManager(app)
 
+    # Configurar tamaño máximo de archivo (5MB)
+    app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
+
     #registramos el blueprint
 
     app.register_blueprint(users_bp, url_prefix='/users')
     app.register_blueprint(sales_bp, url_prefix='/api')
     app.register_blueprint(productos_bp, url_prefix='/productos')
     app.register_blueprint(reports_bp, url_prefix='/reportes')
+
+    # Enedpoint para servir los archivo estaticos (imagenes)
+    @app.route('/static/<path:filename>')
+    def serve_static(filename):
+        return send_from_directory('static', filename)
 
     print(app.url_map)
 
