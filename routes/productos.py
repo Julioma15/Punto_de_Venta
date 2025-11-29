@@ -216,14 +216,14 @@ def allowed_file(filename):
 @jwt_required()
 def subir_imagen_producto(producto_id):
     
-    file = request.files['imagen']
-
     if 'imagen' not in request.files:
         return jsonify({
             'success': False,
             'error': 'No se envió ninguna imagen'
         }), 400
-       
+    
+    file = request.files['imagen']
+    
     if file.filename == '':
         return jsonify({
             'success': False,
