@@ -3,8 +3,6 @@ from config.db import db_connection
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import os
 import uuid
-import cv2
-import numpy as np
 
 productos_bp = Blueprint('productos', __name__)
 
@@ -201,60 +199,22 @@ def Agregar_Productos():
         cursor.close()
         connection.close()
 
-# Para agregar la imagen al producto correspondiente
 UPLOAD_FOLDER = 'static/productos'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
-THUMBNAIL_SIZE = (300, 300)
 
-# Crear directorios si no existen
-os.makedirs(os.path.join(UPLOAD_FOLDER, 'full'), exist_ok=True)
-os.makedirs(os.path.join(UPLOAD_FOLDER, 'thumbnails'), exist_ok=True)
+# Crear directorio si no existe
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 def allowed_file(filename):
     """Verifica si el archivo es una imagen válida"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def create_thumbnail(image_path, thumbnail_path):
-    """Crea una miniatura optimizada de la imagen usando OpenCV"""
-    try:
-        # Leer la imagen
-        img = cv2.imread(image_path)
-        
-        if img is None:
-            print(f"Error: No se pudo leer la imagen {image_path}")
-            return False
-        
-        # Obtener dimensiones originales
-        height, width = img.shape[:2]
-        
-        # Calcular nuevas dimensiones manteniendo el aspect ratio
-        if width > height:
-            new_width = THUMBNAIL_SIZE[0]
-            new_height = int(height * (THUMBNAIL_SIZE[0] / width))
-        else:
-            new_height = THUMBNAIL_SIZE[1]
-            new_width = int(width * (THUMBNAIL_SIZE[1] / height))
-        
-        # Redimensionar la imagen
-        thumbnail = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
-        
-        # Guardar el thumbnail como JPEG con buena calidad
-        cv2.imwrite(thumbnail_path, thumbnail, [cv2.IMWRITE_JPEG_QUALITY, 85])
-        
-        return True
-    except Exception as e:
-        print(f"Error creando thumbnail: {e}")
-        return False
-
-# ============================================
-# ENDPOINTS PARA IMÁGENES
-# ============================================
+# Endpoints para las imagenes
 
 @productos_bp.route('/<int:producto_id>/imagen', methods=['POST'])
 @jwt_required()
 def subir_imagen_producto(producto_id):
-    """Subir o actualizar imagen de un producto"""
     
     if 'imagen' not in request.files:
         return jsonify({
@@ -280,7 +240,7 @@ def subir_imagen_producto(producto_id):
         # Verificar que el producto existe
         conn = db_connection()
         cur = conn.cursor()
-        cur.execute('SELECT id_product, imagen_url, imagen_thumbnail FROM productos WHERE id_product = %s', (producto_id,))
+        cur.execute('SELECT id_product, imagen_url FROM productos WHERE id_product = %s', (producto_id,))
         producto = cur.fetchone()
         
         if not producto:
@@ -295,23 +255,16 @@ def subir_imagen_producto(producto_id):
         ext = file.filename.rsplit('.', 1)[1].lower()
         filename = f"{uuid.uuid4()}.{ext}"
         
-        # Rutas completas
-        full_path = os.path.join(UPLOAD_FOLDER, 'full', filename)
-        thumbnail_filename = f"thumb_{filename.rsplit('.', 1)[0]}.jpg"
-        thumbnail_path = os.path.join(UPLOAD_FOLDER, 'thumbnails', thumbnail_filename)
+        # Ruta completa
+        full_path = os.path.join(UPLOAD_FOLDER, filename)
         
-        # Guardar imagen completa
+        # Guardar imagen
         file.save(full_path)
         
-        # Crear thumbnail
-        if not create_thumbnail(full_path, thumbnail_path):
-            thumbnail_filename = None
+        # URL para la base de datos
+        imagen_url = f"/static/productos/{filename}"
         
-        # URLs para la base de datos
-        imagen_url = f"/static/productos/full/{filename}"
-        thumbnail_url = f"/static/productos/thumbnails/{thumbnail_filename}" if thumbnail_filename else None
-        
-        # Eliminar imágenes anteriores si existen
+        # Eliminar imagen anterior si existe
         if producto[1]:
             old_full = producto[1].replace('/static/', 'static/')
             if os.path.exists(old_full):
@@ -319,18 +272,11 @@ def subir_imagen_producto(producto_id):
                     os.remove(old_full)
                 except:
                     pass
-        if producto[2]:
-            old_thumb = producto[2].replace('/static/', 'static/')
-            if os.path.exists(old_thumb):
-                try:
-                    os.remove(old_thumb)
-                except:
-                    pass
         
-        # Actualizar base de datos
+        # Actualizar base de datos (sin thumbnail)
         cur.execute(
-            'UPDATE productos SET imagen_url = %s, imagen_thumbnail = %s WHERE id_product = %s',
-            (imagen_url, thumbnail_url, producto_id)
+            'UPDATE productos SET imagen_url = %s WHERE id_product = %s',
+            (imagen_url, producto_id)
         )
         conn.commit()
         cur.close()
@@ -339,8 +285,7 @@ def subir_imagen_producto(producto_id):
         return jsonify({
             'success': True,
             'mensaje': 'Imagen subida exitosamente',
-            'imagen_url': request.host_url.rstrip('/') + imagen_url,
-            'thumbnail_url': request.host_url.rstrip('/') + thumbnail_url if thumbnail_url else None
+            'imagen_url': request.host_url.rstrip('/') + imagen_url
         }), 200
         
     except Exception as e:
@@ -352,11 +297,12 @@ def subir_imagen_producto(producto_id):
 @productos_bp.route('/<int:producto_id>/imagen', methods=['DELETE'])
 @jwt_required()
 def eliminar_imagen_producto(producto_id):
+    """Eliminar imagen de un producto"""
     try:
         conn = db_connection()
         cur = conn.cursor()
         
-        cur.execute('SELECT imagen_url, imagen_thumbnail FROM productos WHERE id_product = %s', (producto_id,))
+        cur.execute('SELECT imagen_url FROM productos WHERE id_product = %s', (producto_id,))
         producto = cur.fetchone()
         
         if not producto:
@@ -367,7 +313,7 @@ def eliminar_imagen_producto(producto_id):
                 'error': 'Producto no encontrado'
             }), 404
         
-        # Eliminar archivos del sistema
+        # Eliminar archivo del sistema
         if producto[0]:
             full_path = producto[0].replace('/static/', 'static/')
             if os.path.exists(full_path):
@@ -376,17 +322,9 @@ def eliminar_imagen_producto(producto_id):
                 except:
                     pass
         
-        if producto[1]:
-            thumb_path = producto[1].replace('/static/', 'static/')
-            if os.path.exists(thumb_path):
-                try:
-                    os.remove(thumb_path)
-                except:
-                    pass
-        
         # Actualizar base de datos
         cur.execute(
-            'UPDATE productos SET imagen_url = NULL, imagen_thumbnail = NULL WHERE id_product = %s',
+            'UPDATE productos SET imagen_url = NULL WHERE id_product = %s',
             (producto_id,)
         )
         conn.commit()
