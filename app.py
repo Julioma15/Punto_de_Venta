@@ -1,4 +1,4 @@
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, jsonify
 from flask_jwt_extended import JWTManager
 import os
 from dotenv import load_dotenv
@@ -6,6 +6,7 @@ from routes.productos import productos_bp
 from routes.users import users_bp
 from routes.sales import sales_bp
 from routes.reports import reports_bp
+from PIL import Image
 #Cargar las Variables de entorno
 load_dotenv()
 
@@ -32,6 +33,16 @@ def create_app():
     @app.route('/static/<path:filename>')
     def serve_static(filename):
         return send_from_directory('static', filename)
+
+
+    @app.route('/test_pillow')
+    def test_pillow():
+        try:
+            # Crear una imagen en memoria 100x100 px
+            img = Image.new('RGB', (100, 100), color='red')
+            return jsonify({"success": True, "message": "Pillow está funcionando!"})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
 
     print(app.url_map)
 
