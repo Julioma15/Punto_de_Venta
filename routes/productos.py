@@ -388,3 +388,12 @@ def eliminar_imagen_producto(producto_id):
             'success': False,
             'error': str(e)
         }), 500
+    
+@productos_bp.route('/test_pillow')
+def test_pillow():
+    try:
+        # Crear una imagen en memoria 100x100 px
+        img = Image.new('RGB', (100, 100), color='red')
+        return jsonify({"success": True, "message": "Pillow está funcionando!"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
