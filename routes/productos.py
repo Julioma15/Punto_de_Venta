@@ -347,7 +347,7 @@ def eliminar_imagen_producto(producto_id):
 def cambiar_estado_producto(producto_id): 
     current_user = get_jwt_identity()
     data = request.get_json() or request.form.to_dict()
-    nuevo_estado = data.get("state")
+    nuevo_estado = data.get("product_state")
 
     # Validar que venga el estado
     if not nuevo_estado or nuevo_estado not in {"Enable", "Disable"}:
