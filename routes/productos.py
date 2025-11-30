@@ -239,24 +239,24 @@ def editar_producto(id_product):
         cursor.close()
         connection.close()
 
-
-
 @productos_bp.route('/agregar', methods=['POST'])
 @jwt_required()
 def Agregar_Productos():
     current_user_id = get_jwt_identity()
     
-    # Manejar tanto JSON como form-data
-    if request.is_json:
+    # Detectar tipo de request
+    if request.content_type and "application/json" in request.content_type:
         data = request.get_json() or {}
         imagen_file = None
-    else:
+    elif request.content_type and "multipart/form-data" in request.content_type:
         data = request.form.to_dict()
-        imagen_file = request.files.get('imagen')
-    
+        imagen_file = request.files.get("imagen")
+    else:
+        return jsonify({"error": "Unsupported Media Type. Use JSON or multipart/form-data"}), 415
+
     connection = db_connection()
     cursor = connection.cursor()
-    
+
     try:
         # Verificar rol
         rol_actual = _obtener_rol_activo(cursor, current_user_id)
@@ -264,71 +264,64 @@ def Agregar_Productos():
             return jsonify({"error": "Invalid token or user not found"}), 401
         if not _autorizar_roles(rol_actual, {"admin", "manager"}):
             return jsonify({"error": "Unauthorized user (only admin/manager allowed)"}), 403
-        
+
         # Validar campos requeridos
         campos_requeridos = ["product_name", "price", "barcode", "stock"]
         valido, mensaje = validar_campos_requeridos(data, campos_requeridos)
         if not valido:
             return jsonify({"error": mensaje}), 400
-        
+
         product_name = data.get("product_name")
         price = data.get("price")
         barcode = data.get("barcode")
         stock = data.get("stock")
-        
+
         # Verificar si el producto ya existe
         cursor.execute("SELECT 1 FROM productos WHERE product_name = %s", (product_name,))
         existing_product = cursor.fetchone()
         if existing_product:
             return jsonify({"error": "Product with that name already exists"}), 400
-        
-        # Variables para guardar URLs de imagen
+
+        # Variables para imagen
         imagen_url = None
         thumbnail_url = None
-        
-        # Si se envió una imagen, subirla a Cloudinary
-        if imagen_file and imagen_file.filename != '':
+
+        # Si se envió imagen, subir a Cloudinary
+        if imagen_file and imagen_file.filename != "":
             if not ALLOWED_EXTENSIONS(imagen_file.filename):
                 return jsonify({
                     "error": f"Tipo de archivo no permitido. Use: {', '.join(ALLOWED_EXTENSIONS)}"
                 }), 400
-            
             try:
-                # Subir a Cloudinary con transformaciones automáticas
                 upload_result = cloudinary.uploader.upload(
                     imagen_file,
-                    folder="pos_productos",  # Carpeta en Cloudinary
+                    folder="pos_productos",
                     transformation=[
-                        {'width': 1200, 'height': 1200, 'crop': 'limit'},  # Limitar tamaño
-                        {'quality': 'auto:good'}  # Optimizar calidad
+                        {'width': 1200, 'height': 1200, 'crop': 'limit'},
+                        {'quality': 'auto:good'}
                     ],
                     eager=[
-                        {'width': 300, 'height': 300, 'crop': 'fill', 'gravity': 'auto'}  # Thumbnail
+                        {'width': 300, 'height': 300, 'crop': 'fill', 'gravity': 'auto'}
                     ],
                     eager_async=False
                 )
-                
-                # URLs generadas por Cloudinary
-                imagen_url = upload_result['secure_url']
-                
-                # Thumbnail (si se generó)
+
+                imagen_url = upload_result.get("secure_url")
                 if 'eager' in upload_result and len(upload_result['eager']) > 0:
-                    thumbnail_url = upload_result['eager'][0]['secure_url']
+                    thumbnail_url = upload_result['eager'][0].get("secure_url")
                 else:
-                    thumbnail_url = imagen_url  # Si no hay thumbnail, usar imagen original
-                
+                    thumbnail_url = imagen_url
+
             except Exception as e:
-                return jsonify({
-                    "error": f"Error subiendo imagen a Cloudinary: {str(e)}"
-                }), 500
-        
-        # Insertar producto con imagen
+                return jsonify({"error": f"Error subiendo imagen a Cloudinary: {str(e)}"}), 500
+
+        # Insertar producto
         cursor.execute(
             "INSERT INTO productos (product_name, price, barcode, stock, imagen_url, imagen_thumbnail) VALUES (%s, %s, %s, %s, %s, %s)",
             (product_name, price, barcode, stock, imagen_url, thumbnail_url)
         )
         connection.commit()
-        
+
         response = {
             "message": f"Product {product_name} created successfully",
             "product": {
@@ -340,9 +333,9 @@ def Agregar_Productos():
                 "thumbnail_url": thumbnail_url
             }
         }
-        
+
         return jsonify(response), 201
-    
+
     except Exception as error:
         connection.rollback()
         return jsonify({"error": f"Registered error: {str(error)}"}), 500
