@@ -341,3 +341,49 @@ def eliminar_imagen_producto(producto_id):
             'success': False,
             'error': str(e)
         }), 500
+    
+@productos_bp.route('/<int:producto_id>/product_state', methods=['PATCH'])
+@jwt_required()
+def cambiar_estado_producto(producto_id): 
+    current_user = get_jwt_identity()
+    data = request.get_json() or request.form.to_dict()
+    nuevo_estado = data.get("state")
+
+    # Validar que venga el estado
+    if not nuevo_estado or nuevo_estado not in {"Enable", "Disable"}:
+        return jsonify({"error": "El campo 'state' es requerido y debe ser 'Enable' o 'Disable'"}), 400
+
+    connection = db_connection()
+    cursor = connection.cursor()
+    try:
+        # Verificar rol
+        rol_actual = _obtener_rol_activo(cursor, current_user)
+        if not rol_actual:
+            return jsonify({"error": "Invalid token or user not found"}), 401
+        if not _autorizar_roles(rol_actual, {"admin", "manager"}):
+            return jsonify({"error": "Unauthorized user (only admin/manager allowed)"}), 403
+
+        # Verificar si el producto existe
+        cursor.execute("SELECT product_state FROM productos WHERE id_product = %s", (producto_id,))
+        producto = cursor.fetchone()
+        if not producto:
+            return jsonify({"error": "No product with that ID"}), 404
+
+        # Actualizar el estado
+        cursor.execute(
+            "UPDATE productos SET product_state = %s WHERE id_product = %s",
+            (nuevo_estado, producto_id)
+        )
+        connection.commit()
+
+        return jsonify({
+            "message": f"Product {producto_id} state updated successfully",
+            "new_state": nuevo_estado
+        }), 200
+
+    except Exception as error:
+        connection.rollback()
+        return jsonify({"error": f"Registered error: {str(error)}"}), 500
+    finally:
+        cursor.close()
+        connection.close()
