@@ -243,20 +243,16 @@ def editar_producto(id_product):
 @jwt_required()
 def Agregar_Productos():
     current_user_id = get_jwt_identity()
-    
-    # Detectar tipo de request
-    if request.content_type and "application/json" in request.content_type:
-        data = request.get_json() or {}
-        imagen_file = None
-    elif request.content_type and "multipart/form-data" in request.content_type:
-        data = request.form.to_dict()
-        imagen_file = request.files.get("imagen")
-    else:
-        return jsonify({"error": "Unsupported Media Type. Use JSON or multipart/form-data"}), 415
+
+    # Solo form-data
+    if not request.content_type or "multipart/form-data" not in request.content_type:
+        return jsonify({"error": "Unsupported Media Type. Use multipart/form-data"}), 415
+
+    data = request.form.to_dict()
+    imagen_file = request.files.get("imagen")
 
     connection = db_connection()
     cursor = connection.cursor()
-
     try:
         # Verificar rol
         rol_actual = _obtener_rol_activo(cursor, current_user_id)
@@ -278,15 +274,14 @@ def Agregar_Productos():
 
         # Verificar si el producto ya existe
         cursor.execute("SELECT 1 FROM productos WHERE product_name = %s", (product_name,))
-        existing_product = cursor.fetchone()
-        if existing_product:
+        if cursor.fetchone():
             return jsonify({"error": "Product with that name already exists"}), 400
 
         # Variables para imagen
         imagen_url = None
         thumbnail_url = None
 
-        # Si se envió imagen, subir a Cloudinary
+        # Subir imagen a Cloudinary si se envió
         if imagen_file and imagen_file.filename != "":
             if not ALLOWED_EXTENSIONS(imagen_file.filename):
                 return jsonify({
@@ -305,7 +300,6 @@ def Agregar_Productos():
                     ],
                     eager_async=False
                 )
-
                 imagen_url = upload_result.get("secure_url")
                 if 'eager' in upload_result and len(upload_result['eager']) > 0:
                     thumbnail_url = upload_result['eager'][0].get("secure_url")
