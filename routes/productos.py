@@ -212,7 +212,92 @@ def allowed_file(filename):
 
 # Endpoints para las imagenes
 
-@productos_bp.route('/<int:producto_id>/imagen', methods=['POST'])
+@productos_bp.route('/crear/imagen', methods=['POST'])
+@jwt_required()
+def subir_imagen_producto_crear():
+    try:
+        # Verificar que venga la imagen
+        if 'imagen' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No se envió ninguna imagen'
+            }), 400
+
+        file = request.files['imagen']
+
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'Nombre de archivo vacío'
+            }), 400
+
+        if not allowed_file(file.filename):
+            return jsonify({
+                'success': False,
+                'error': f'Tipo de archivo no permitido. Use: {", ".join(ALLOWED_EXTENSIONS)}'
+            }), 400
+
+        # Aquí se podría crear el producto si se necesitan datos adicionales
+        # Por simplicidad asumimos que el producto ya se creó y solo asociamos imagen
+        # Si quieres, puedes recibir datos JSON en paralelo y crear el producto aquí
+
+        # Generar nombre único para la imagen
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = f"{uuid.uuid4()}.{ext}"
+        full_path = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(full_path)
+
+        # Guardar URL para la base de datos
+        imagen_url = f"/static/productos/{filename}"
+
+        # Insertar registro en DB o actualizar el último producto creado
+        conn = db_connection()
+        cur = conn.cursor()
+
+        # Obtener el último producto creado (más reciente)
+        cur.execute('SELECT id_product, imagen_url FROM productos ORDER BY created_at DESC LIMIT 1')
+        producto = cur.fetchone()
+
+        if not producto:
+            cur.close()
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'No se encontró un producto para asociar la imagen'
+            }), 404
+
+        # Eliminar imagen anterior si existe
+        if producto[1]:
+            old_full = producto[1].replace('/static/', 'static/')
+            if os.path.exists(old_full):
+                try:
+                    os.remove(old_full)
+                except:
+                    pass
+
+        # Actualizar la DB con la nueva imagen
+        cur.execute(
+            'UPDATE productos SET imagen_url = %s WHERE id_product = %s',
+            (imagen_url, producto[0])
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'mensaje': 'Imagen subida exitosamente',
+            'imagen_url': request.host_url.rstrip('/') + imagen_url
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@productos_bp.route('/<int:producto_id>/imagen', methods=['PATCH'])
 @jwt_required()
 def subir_imagen_producto(producto_id):
     
