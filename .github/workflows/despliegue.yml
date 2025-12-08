@@ -31,7 +31,7 @@ jobs:
         context: .
         push: true
         # Reemplaza 'tu_usuario' con tu usuario de GitHub en minúsculas y 'nombre_repo' con el nombre de tu repo
-        tags: ghcr.io/Julioma15/Punto_de_Venta:latest
+        tags: ghcr.io/julioma15/punto_de_venta:latest
 
     # 4. Avisar a Render para que actualice (CD)
     # Este paso fallará la primera vez porque aún no tenemos la URL de Render, no te preocupes.
