@@ -14,8 +14,7 @@ CREATE TABLE Productos (
     stock        INT NOT NULL DEFAULT 0 CHECK (stock >= 0),
     created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     product_state VARCHAR(10) DEFAULT 'Enable' CHECK (product_state IN ('Enable', 'Disable')),
-    imagen_url VARCHAR(500),
-    imagen_thumbnail VARCHAR(500)
+    imagen_url VARCHAR(500)
 );
 CREATE TABLE Ventas (
     id_sale    BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
